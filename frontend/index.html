@@ -1,0 +1,2981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="theme-color" content="#F96302"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="GemmaCart"/>
+<meta name="description" content="AI-powered Home Depot in-store product finder — find any item with exact aisle directions."/>
+<title>GemmaCart – Home Depot Assistant</title>
+<style>
+/* ── Reset & tokens ─────────────────────────────────────────────────── */
+:root {
+  --hd-orange: #F96302;
+  --hd-dark:   #C44D00;
+  --green:     #22C55E;
+  --red:       #EF4444;
+  --blue:      #3B82F6;
+  --bg:        #F3F4F6;
+  --card:      #FFFFFF;
+  --border:    #E5E7EB;
+  --text:      #111827;
+  --muted:     #6B7280;
+  --radius:    16px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; height: 100dvh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #E8E8E8;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+
+/* ── Phone shell ────────────────────────────────────────────────────── */
+.phone {
+  width: 100%; max-width: 430px;
+  height: 100%; max-height: 100dvh;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  position: relative; overflow: hidden;
+  box-shadow: 0 0 40px rgba(0,0,0,.25);
+}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+.header {
+  background: linear-gradient(135deg, var(--hd-orange) 0%, var(--hd-dark) 100%);
+  color: #fff;
+  padding: 14px 16px 10px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+.header-top {
+  display: flex; align-items: center; gap: 10px;
+}
+.logo {
+  font-size: 1.25rem; font-weight: 800; letter-spacing: -.5px;
+  line-height: 1;
+}
+.logo-sub { font-size: .7rem; opacity: .8; font-weight: 400; margin-top: 1px; }
+.model-badge {
+  margin-left: auto;
+  background: rgba(255,255,255,.15);
+  border-radius: 20px; padding: 3px 10px;
+  font-size: .68rem; display: flex; align-items: center; gap: 5px;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #9CA3AF; }
+.dot.on { background: #4ADE80; box-shadow: 0 0 0 3px rgba(74,222,128,.3); }
+
+/* ── Store detection banner ─────────────────────────────────────────── */
+.store-banner {
+  margin-top: 8px;
+  background: rgba(0,0,0,.18);
+  border-radius: 10px; padding: 6px 10px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: .75rem;
+}
+.store-icon { font-size: 1rem; flex-shrink: 0; }
+.store-name { flex: 1; font-weight: 600; line-height: 1.2; }
+.store-addr { font-size: .65rem; opacity: .8; }
+.store-status {
+  font-size: .65rem; padding: 2px 7px;
+  border-radius: 10px; font-weight: 600; flex-shrink: 0;
+}
+.store-status.nearby  { background: #22C55E; color: #fff; }
+.store-status.locating { background: rgba(255,255,255,.25); color: #fff; }
+.store-status.away    { background: rgba(255,255,255,.15); color: rgba(255,255,255,.8); }
+
+/* ── Chat area ──────────────────────────────────────────────────────── */
+.chat {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  padding: 12px 12px 6px;
+  display: flex; flex-direction: column; gap: 10px;
+  scroll-behavior: smooth;
+}
+.chat::-webkit-scrollbar { width: 3px; }
+.chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Bubbles */
+.bubble-wrap {
+  display: flex; flex-direction: column; gap: 3px;
+  animation: fadeUp .25s ease;
+}
+.bubble-wrap.user { align-items: flex-end; }
+.bubble-wrap.ai   { align-items: flex-start; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.bubble {
+  max-width: 82%; padding: 10px 14px;
+  border-radius: 18px; font-size: .88rem; line-height: 1.45;
+}
+.bubble.user {
+  background: var(--hd-orange); color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.bubble.ai {
+  background: var(--card); color: var(--text);
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+.bubble.typing {
+  background: var(--card); padding: 12px 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+.typing-dots { display: flex; gap: 4px; align-items: center; }
+.typing-dots span {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--muted); animation: bounce 1.2s infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay: .2s; }
+.typing-dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes bounce {
+  0%,60%,100% { transform: translateY(0); }
+  30% { transform: translateY(-6px); }
+}
+
+.bubble-time {
+  font-size: .62rem; color: var(--muted); padding: 0 4px;
+}
+
+/* Image preview in chat */
+.bubble img.chat-img {
+  max-width: 100%; border-radius: 10px; display: block;
+  margin-top: 6px;
+}
+
+/* ── Product cards ──────────────────────────────────────────────────── */
+.cards-wrap {
+  width: 100%; animation: fadeUp .3s ease;
+}
+.cards-label {
+  font-size: .72rem; color: var(--muted); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .5px;
+  margin-bottom: 6px; padding-left: 2px;
+}
+.cards-scroll {
+  display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px;
+}
+.cards-scroll::-webkit-scrollbar { height: 3px; }
+.cards-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.prod-card {
+  flex-shrink: 0; width: 150px;
+  background: var(--card); border-radius: 12px;
+  overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,.08);
+  cursor: pointer; transition: transform .15s, box-shadow .15s;
+}
+.prod-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+.prod-img {
+  width: 100%; height: 90px; object-fit: contain;
+  background: #F9FAFB; padding: 6px;
+}
+.prod-img-placeholder {
+  width: 100%; height: 90px;
+  background: linear-gradient(135deg, #FED7AA, #FEF3C7);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem;
+}
+.prod-body { padding: 8px; }
+.prod-name {
+  font-size: .75rem; font-weight: 600; color: var(--text);
+  line-height: 1.3; margin-bottom: 4px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.prod-brand { font-size: .65rem; color: var(--muted); margin-bottom: 4px; }
+.prod-price {
+  font-size: .85rem; font-weight: 700; color: var(--hd-orange);
+}
+.prod-aisle {
+  font-size: .65rem; color: var(--muted); margin-top: 3px;
+  display: flex; align-items: center; gap: 3px;
+}
+.aisle-pin { color: var(--hd-orange); }
+
+/* ── Directions card ─────────────────────────────────────────────────── */
+.route-card {
+  width: 100%; background: var(--card); border-radius: 14px;
+  overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,.08);
+  animation: fadeUp .3s ease;
+}
+.route-header {
+  background: var(--hd-orange); color: #fff;
+  padding: 10px 14px; display: flex; align-items: center; gap: 8px;
+}
+.route-header-icon { font-size: 1.1rem; }
+.route-header-text { font-size: .82rem; font-weight: 700; }
+.route-header-meta { font-size: .7rem; opacity: .85; margin-left: auto; }
+.route-steps { padding: 6px 0; }
+.route-step {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 14px; border-bottom: 1px solid var(--border);
+}
+.route-step:last-child { border-bottom: none; }
+.step-num {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--hd-orange); color: #fff;
+  font-size: .72rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.step-num.arrow {
+  background: #F3F4F6; color: var(--muted); font-size: .9rem;
+}
+.step-info { flex: 1; }
+.step-main { font-size: .8rem; font-weight: 600; color: var(--text); }
+.step-sub  { font-size: .7rem; color: var(--muted); margin-top: 2px; }
+
+/* ── Quick prompts ───────────────────────────────────────────────────── */
+.quick-wrap {
+  padding: 0 12px 8px;
+  display: flex; gap: 8px; overflow-x: auto; flex-shrink: 0;
+}
+.quick-wrap::-webkit-scrollbar { display: none; }
+.quick-chip {
+  flex-shrink: 0; padding: 6px 14px;
+  background: var(--card); border: 1.5px solid var(--border);
+  border-radius: 20px; font-size: .78rem; color: var(--text);
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.quick-chip:hover { border-color: var(--hd-orange); color: var(--hd-orange); }
+
+/* ── Bottom input bar ────────────────────────────────────────────────── */
+.input-bar {
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  padding: 8px 8px;
+  padding-bottom: calc(8px + var(--safe-bottom));
+  flex-shrink: 0; z-index: 10;
+  position: relative;
+}
+.input-row {
+  display: flex; align-items: center; gap: 5px;
+}
+.input-wrap {
+  flex: 1; display: flex; align-items: center;
+  background: var(--bg); border: 2px solid var(--border);
+  border-radius: 24px; padding: 6px 10px; gap: 6px;
+  transition: border-color .2s; min-width: 0;
+}
+.input-wrap:focus-within { border-color: var(--hd-orange); }
+.input-wrap.has-image { border-color: var(--hd-orange); }
+/* Photo preview chip inside the input-wrap */
+.img-preview-chip {
+  position: relative; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 8px; overflow: visible;
+}
+.img-preview-chip img {
+  width: 40px; height: 40px; border-radius: 8px;
+  object-fit: cover; display: block;
+}
+.img-preview-remove {
+  position: absolute; top: -5px; right: -5px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #333; color: #fff; border: none;
+  font-size: .6rem; cursor: pointer; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+}
+.msg-input {
+  flex: 1; border: none; background: transparent;
+  font-size: .92rem; color: var(--text); outline: none;
+  line-height: 1.4;
+}
+.msg-input::placeholder { color: var(--muted); }
+
+.img-btn, .send-btn, .voice-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  border: none; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  font-size: 1rem; transition: all .15s; flex-shrink: 0;
+}
+.img-btn   { background: var(--bg); color: var(--muted); }
+.img-btn:hover { background: #FEE2CC; color: var(--hd-orange); }
+.voice-btn { background: var(--bg); color: var(--muted); }
+.voice-btn.listening { background: #FEE2CC; color: var(--red); animation: pulseBtn 1s infinite; }
+.send-btn  { background: var(--hd-orange); color: #fff; }
+.send-btn:hover { background: var(--hd-dark); transform: scale(1.05); }
+.send-btn:disabled { background: var(--border); color: var(--muted); transform: none; cursor: default; }
+
+@keyframes pulseBtn {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,.4); }
+  50%       { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+}
+
+/* Hidden file input */
+#fileInput { display: none; }
+
+/* ── Welcome screen ──────────────────────────────────────────────────── */
+.welcome {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  flex: 1; padding: 20px; text-align: center; gap: 8px;
+}
+.welcome-icon { font-size: 4rem; }
+.welcome-title { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.welcome-sub   { font-size: .85rem; color: var(--muted); line-height: 1.5; max-width: 280px; }
+
+/* ── Toast ───────────────────────────────────────────────────────────── */
+.toast {
+  position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,.75); color: #fff;
+  padding: 8px 18px; border-radius: 20px; font-size: .78rem;
+  pointer-events: none; opacity: 0; transition: opacity .3s;
+  white-space: nowrap; z-index: 100;
+}
+.toast.show { opacity: 1; }
+
+/* ── Source badge ────────────────────────────────────────────────────── */
+.source-badge {
+  font-size: .65rem; color: var(--muted);
+  display: inline-flex; align-items: center; gap: 3px;
+  margin-top: 5px;
+}
+.source-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--green);
+}
+.source-dot.live { background: var(--green); }
+.source-dot.local { background: var(--blue); }
+.source-dot.fallback { background: var(--muted); }
+
+/* ── Navigate button on product card ─────────────────────────────── */
+.nav-btn {
+  display: block; width: 100%; margin-top: 6px; padding: 5px 0;
+  background: var(--hd-orange); color: #fff; border: none;
+  border-radius: 8px; font-size: .72rem; font-weight: 700;
+  cursor: pointer; transition: background .15s;
+}
+.nav-btn:hover { background: var(--hd-dark); }
+.hd-link-btn {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  width: 100%; margin-top: 5px; padding: 5px 0;
+  background: transparent; color: var(--hd-orange);
+  border: 1.5px solid var(--hd-orange); border-radius: 8px;
+  font-size: .7rem; font-weight: 700; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.hd-link-btn:hover { background: var(--hd-orange); color: #fff; }
+
+/* ── Map overlay (bottom sheet) ──────────────────────────────────── */
+.map-overlay {
+  position: absolute; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.45);
+  display: flex; align-items: flex-end;
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s;
+}
+.map-overlay.open { opacity: 1; pointer-events: all; }
+.map-sheet {
+  width: 100%; background: var(--card);
+  border-radius: 22px 22px 0 0; padding: 0 0 16px;
+  transform: translateY(100%);
+  transition: transform .3s cubic-bezier(.32,1,.35,1);
+  max-height: 90dvh; display: flex; flex-direction: column;
+}
+.map-overlay.open .map-sheet { transform: translateY(0); }
+.map-handle {
+  width: 40px; height: 4px; border-radius: 2px;
+  background: var(--border); margin: 10px auto 0;
+}
+.map-header {
+  display: flex; align-items: flex-start; padding: 10px 16px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.map-header-text { flex: 1; }
+.map-title { font-size: .95rem; font-weight: 700; }
+.map-subtitle { font-size: .72rem; color: var(--muted); margin-top: 1px; }
+.map-close {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: none; background: var(--bg); font-size: .9rem;
+  cursor: pointer; color: var(--muted); flex-shrink: 0;
+}
+.map-canvas-wrap {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px 12px 4px; background: #F5F0E8;
+}
+#mapCanvas { border-radius: 8px; max-width: 100%; cursor: crosshair; }
+/* Location prompt – shown when userPos is unknown */
+.loc-prompt {
+  position: absolute; inset: 10px 12px 4px; border-radius: 8px;
+  background: rgba(0,0,0,.52);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: #fff; text-align: center; gap: 6px; transition: opacity .25s; pointer-events: none;
+}
+.loc-prompt.hidden { opacity: 0; }
+.loc-prompt-icon { font-size: 2rem; animation: tap-pulse 1.2s ease-in-out infinite; }
+.loc-prompt p { font-size: .78rem; font-weight: 600; margin: 0; line-height: 1.45; }
+@keyframes tap-pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.3);opacity:.7} }
+/* Section chips – quick "I'm here" selector */
+.sec-chips {
+  display: flex; gap: 6px; overflow-x: auto; padding: 6px 12px 2px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.sec-chips::-webkit-scrollbar { display: none; }
+.sec-chip {
+  flex-shrink: 0; border: 1.5px solid var(--border); border-radius: 99px;
+  padding: 3px 10px; font-size: .7rem; font-weight: 600;
+  background: var(--card); color: #374151; cursor: pointer; white-space: nowrap;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.sec-chip.active { background: #2563EB; color: #fff; border-color: #2563EB; }
+/* Product info panel */
+.map-product-info {
+  margin: 6px 12px 0; padding: 8px 12px;
+  background: #FFF7ED; border-radius: 10px;
+  border-left: 3px solid var(--hd-orange);
+}
+.map-pname { font-size: .82rem; font-weight: 700; color: var(--hd-orange); }
+.map-pdesc { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+/* Mark as Found button */
+.map-found-btn {
+  display: block; width: calc(100% - 24px); margin: 8px auto 2px;
+  background: #22C55E; color: #fff; border: none; border-radius: 10px;
+  padding: 9px; font-size: .83rem; font-weight: 700; cursor: pointer; letter-spacing: .01em;
+  transition: background .15s;
+}
+.map-found-btn:active { background: #16A34A; }
+/* Distance badge in subtitle */
+.map-dist-badge {
+  display: inline-block; font-size: .68rem; background: #FEF3C7;
+  color: #92400E; border-radius: 99px; padding: 1px 7px; font-weight: 600; vertical-align: middle;
+}
+.map-legend {
+  display: flex; gap: 16px; padding: 6px 16px 0;
+  font-size: .72rem; color: var(--muted); justify-content: center;
+}
+/* Preview banner – shown when user is not in the store */
+.map-preview-banner {
+  display: none; margin: 6px 12px 0; padding: 8px 12px;
+  background: #EFF6FF; border-radius: 10px;
+  border-left: 3px solid #2563EB;
+  font-size: .75rem; color: #1D4ED8; line-height: 1.4;
+}
+.map-preview-banner.show { display: block; }
+/* Reset location button in map header */
+.map-reset-btn {
+  border: none; background: var(--bg); border-radius: 8px;
+  padding: 4px 8px; font-size: .7rem; font-weight: 600;
+  color: var(--muted); cursor: pointer; margin-right: 6px; flex-shrink: 0;
+  transition: color .15s;
+}
+.map-reset-btn:active { color: #2563EB; }
+/* ── Voice toggle in map header ─────────────────────────────────── */
+.map-voice-btn {
+  border: none; background: var(--bg); border-radius: 8px;
+  padding: 4px 8px; font-size: .85rem; cursor: pointer; margin-right: 4px;
+  flex-shrink: 0; transition: background .15s; opacity: .6;
+}
+.map-voice-btn.active { background: #FEF3C7; opacity: 1; }
+/* ── Shopping list overlay ───────────────────────────────────────── */
+.list-overlay {
+  position: absolute; inset: 0; z-index: 190;
+  background: rgba(0,0,0,.45); display: flex; align-items: flex-end;
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+.list-overlay.open { opacity: 1; pointer-events: all; }
+.list-sheet {
+  width: 100%; background: var(--card);
+  border-radius: 22px 22px 0 0; padding: 0 0 16px;
+  transform: translateY(100%);
+  transition: transform .3s cubic-bezier(.32,1,.35,1);
+  max-height: 78dvh; display: flex; flex-direction: column;
+}
+.list-overlay.open .list-sheet { transform: translateY(0); }
+.list-header {
+  display: flex; align-items: center; padding: 10px 16px;
+  border-bottom: 1px solid var(--border); gap: 8px;
+}
+.list-title { flex: 1; font-size: .95rem; font-weight: 700; }
+.list-count {
+  background: var(--hd-orange); color: #fff; border-radius: 99px;
+  padding: 1px 8px; font-size: .72rem; font-weight: 700; display: none;
+}
+.list-route-btn {
+  border: none; background: var(--hd-orange); color: #fff;
+  border-radius: 8px; padding: 5px 10px; font-size: .73rem; font-weight: 700; cursor: pointer;
+}
+.list-route-btn:disabled { background: var(--border); color: var(--muted); cursor: default; }
+.list-items { flex: 1; overflow-y: auto; }
+.list-empty { text-align: center; padding: 28px 20px; color: var(--muted); font-size: .8rem; line-height: 1.5; }
+.list-item {
+  display: flex; align-items: center; padding: 10px 14px;
+  border-bottom: 1px solid var(--border); gap: 10px; transition: opacity .2s;
+}
+.list-item.found { opacity: .5; }
+.list-check {
+  width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--border);
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s; font-size: .75rem; font-weight: 700;
+}
+.list-item.found .list-check { background: #22C55E; border-color: #22C55E; color: #fff; }
+.list-item-info { flex: 1; min-width: 0; }
+.list-item-name {
+  font-size: .82rem; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.list-item.found .list-item-name { text-decoration: line-through; }
+.list-item-aisle { font-size: .7rem; color: var(--muted); margin-top: 1px; }
+.list-nav-btn {
+  border: none; background: var(--bg); border-radius: 8px;
+  padding: 4px 8px; font-size: .72rem; cursor: pointer;
+  color: var(--hd-orange); font-weight: 700; flex-shrink: 0;
+}
+.list-del-btn {
+  border: none; background: none; color: var(--muted);
+  font-size: 1.1rem; cursor: pointer; padding: 0 2px; flex-shrink: 0; line-height: 1;
+}
+/* ── Add-to-list button on product cards ─────────────────────────── */
+.add-cart-btn {
+  display: block; width: 100%; margin-top: 4px; padding: 4px 0;
+  background: var(--bg); color: #374151; border: 1.5px solid var(--border);
+  border-radius: 8px; font-size: .72rem; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.add-cart-btn.in-list { background: #ECFDF5; color: #16A34A; border-color: #16A34A; }
+/* ── Cart icon + badge in input bar ─────────────────────────────── */
+.cart-btn {
+  width: 38px; height: 38px; border-radius: 50%; border: none;
+  background: var(--bg); font-size: 1.15rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; flex-shrink: 0;
+}
+.cart-badge {
+  position: absolute; top: 1px; right: 1px;
+  background: var(--hd-orange); color: #fff; border-radius: 99px;
+  font-size: .55rem; font-weight: 700; min-width: 14px; height: 14px;
+  padding: 0 3px; display: none; align-items: center; justify-content: center;
+}
+/* ── + action button ─────────────────────────────────────────────── */
+.plus-btn {
+  width: 38px; height: 38px; border-radius: 50%; border: none;
+  background: var(--hd-orange); color: #fff;
+  font-size: 1.5rem; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: transform .25s cubic-bezier(.34,1.56,.64,1), background .2s;
+  font-weight: 300; box-shadow: 0 2px 8px rgba(249,99,2,.35);
+}
+.plus-btn.open { transform: rotate(45deg); background: var(--hd-dark); box-shadow: none; }
+
+/* ── Vertical action menu (pops up above the + button, left-aligned) */
+.action-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);   /* float above input-bar */
+  left: 8px;                  /* aligns with the + button */
+  overflow: hidden;
+  max-height: 0; opacity: 0;
+  transition: max-height .32s cubic-bezier(.34,1.2,.64,1), opacity .2s ease;
+  z-index: 20;
+  border-radius: 14px;
+}
+.action-menu.open { max-height: 180px; opacity: 1; }
+.action-menu-inner {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 8px;
+  background: rgba(255,255,255,.18);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 18px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+}
+.action-item {
+  width: 44px; height: 44px; border-radius: 50%; border: none;
+  background: var(--hd-orange); color: #fff;
+  font-size: 1.15rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(249,99,2,.35);
+  transition: background .15s, transform .12s;
+  position: relative; flex-shrink: 0;
+}
+.action-item:active { background: var(--hd-dark); transform: scale(.9); }
+
+/* ── Live compass navigation bar ─────────────────────────────────── */
+.nav-bar {
+  display: none; align-items: center; gap: 10px;
+  background: linear-gradient(90deg, #1a1a1a 0%, #2d2d2d 100%);
+  padding: 9px 14px;
+  border-top: 2px solid var(--hd-orange);
+  animation: slideUp .3s ease;
+}
+.nav-bar.show { display: flex; }
+@keyframes slideUp { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
+.nav-compass-wrap {
+  width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--hd-orange);
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(249,99,2,.1); position: relative;
+}
+.nav-arrow {
+  font-size: 1.6rem; line-height: 1; color: var(--hd-orange);
+  transition: transform .4s cubic-bezier(.34,1.56,.64,1);
+  display: block;
+}
+.nav-bar-info { flex: 1; min-width: 0; }
+.nav-bar-dest {
+  font-size: .78rem; font-weight: 800; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nav-bar-sub {
+  font-size: .68rem; color: rgba(255,255,255,.6); margin-top: 1px;
+}
+.nav-bar-dist {
+  font-size: .88rem; font-weight: 800; color: var(--hd-orange); flex-shrink: 0;
+  text-align: right; line-height: 1.2;
+}
+.nav-bar-dist span { display: block; font-size: .6rem; font-weight: 500; color: rgba(255,255,255,.5); }
+.nav-bar-close {
+  width: 28px; height: 28px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,.12); color: #fff; font-size: .8rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+
+/* ── Direction view (replaces canvas when navigating in-store) ─────── */
+.map-sheet.dir-mode .map-canvas-wrap { display: none; }
+.dir-view {
+  display: none; flex-direction: column; align-items: center;
+  padding: 16px 16px 8px; gap: 6px; text-align: center;
+  position: relative; overflow: hidden; min-height: 260px;
+}
+.map-sheet.dir-mode .dir-view { display: flex; }
+
+/* Camera AR background */
+#arCamera {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; object-fit: cover;
+  opacity: 0; transition: opacity .4s; z-index: 0;
+  pointer-events: none;
+}
+#arCamera.ar-on { opacity: 1; }
+/* Semi-transparent backdrop on text elements when AR is active */
+.dir-view.ar-active .dir-dept,
+.dir-view.ar-active .dir-aisle,
+.dir-view.ar-active .dir-product,
+.dir-view.ar-active .dir-dist-row {
+  background: rgba(0,0,0,.55); border-radius: 8px; padding: 2px 10px;
+}
+.dir-view.ar-active .dir-arrow-ring {
+  background: rgba(0,0,0,.45);
+  border-color: #fff;
+}
+.dir-view.ar-active .dir-arrow-big { color: #fff; }
+
+.dir-arrow-ring {
+  width: 120px; height: 120px; border-radius: 50%;
+  border: 3px solid var(--hd-orange);
+  background: rgba(249,99,2,.07);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 2px; position: relative; z-index: 1;
+}
+.dir-arrow-big {
+  font-size: 4rem; color: var(--hd-orange); line-height: 1;
+  transition: transform .35s cubic-bezier(.34,1.56,.64,1);
+  display: block; user-select: none;
+}
+.dir-dept {
+  font-size: 1rem; font-weight: 900; color: #1a1a1a;
+  letter-spacing: .05em; text-transform: uppercase; line-height: 1.2;
+  position: relative; z-index: 1;
+}
+.dir-aisle {
+  font-size: 1.9rem; font-weight: 900; color: var(--hd-orange); line-height: 1;
+  position: relative; z-index: 1;
+}
+.dir-product {
+  font-size: .75rem; color: #666; max-width: 280px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;
+  position: relative; z-index: 1;
+}
+.dir-dist-row {
+  display: flex; align-items: baseline; gap: 5px; margin-top: 4px;
+  position: relative; z-index: 1;
+}
+.dir-dist-num { font-size: 1.6rem; font-weight: 900; color: #1a1a1a; }
+.dir-dist-unit { font-size: .72rem; color: #888; }
+.dir-map-toggle {
+  font-size: .65rem; font-weight: 700; color: var(--hd-orange);
+  background: none; border: 1px solid var(--hd-orange);
+  border-radius: 20px; padding: 3px 12px; cursor: pointer; margin-top: 2px;
+  position: relative; z-index: 1;
+}
+.dir-ar-btn {
+  font-size: .65rem; font-weight: 700;
+  background: rgba(0,0,0,.12); color: #555; border: 1px solid #ccc;
+  border-radius: 20px; padding: 3px 12px; cursor: pointer;
+  position: relative; z-index: 1;
+}
+.dir-view.ar-active .dir-ar-btn {
+  background: rgba(239,68,68,.8); color: #fff; border-color: transparent;
+}
+/* ── Step-by-step navigation panel ──────────────────────────────── */
+.nav-steps {
+  width: 100%; display: flex; flex-direction: column; gap: 3px;
+  position: relative; z-index: 1; margin: 2px 0 0;
+  max-height: 108px; overflow-y: auto;
+}
+.nav-step {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: rgba(255,255,255,.82); border-radius: 10px;
+  padding: 5px 10px; font-size: .76rem; text-align: left; opacity: .5;
+  border-left: 3px solid transparent;
+}
+.nav-step.active {
+  opacity: 1; font-weight: 700;
+  border-left-color: #F96302;
+  background: rgba(255,255,255,.96);
+}
+.nav-step-icon { font-size: .95rem; flex-shrink: 0; line-height: 1.4; }
+.nav-step-text { flex: 1; line-height: 1.35; color: #111827; }
+/* ── Aisle scan overlay ──────────────────────────────────────────── */
+.aisle-scan-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,.72);
+  display: none; align-items: flex-end; justify-content: center;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.aisle-scan-overlay.open { display: flex; }
+.aisle-scan-card {
+  background: #fff; border-radius: 24px 24px 0 0;
+  padding: 20px 20px 28px; width: 100%; max-width: 430px;
+  display: flex; flex-direction: column; gap: 10px; text-align: center;
+}
+.aisle-scan-title { font-size: 1.1rem; font-weight: 800; color: #111827; }
+.aisle-scan-hint  { font-size: .78rem; color: #6B7280; line-height: 1.4; }
+.aisle-input-display {
+  font-size: 2.6rem; font-weight: 900; letter-spacing: 8px;
+  color: #F96302; min-height: 52px; border-bottom: 3px solid #F96302;
+  padding-bottom: 4px; font-variant-numeric: tabular-nums;
+}
+.aisle-numpad {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  margin-top: 4px;
+}
+.aisle-key {
+  padding: 16px 0; font-size: 1.25rem; font-weight: 700;
+  background: #F3F4F6; border: none; border-radius: 12px;
+  cursor: pointer; transition: background .12s; color: #111827;
+}
+.aisle-key:active, .aisle-key:focus { background: #E5E7EB; outline: none; }
+.aisle-key.garden { color: #16A34A; background: #DCFCE7; }
+.aisle-key.del    { color: #EF4444; background: #FEE2E2; }
+.aisle-key.zero   { grid-column: 2; }
+.aisle-scan-confirm {
+  background: #F96302; color: #fff; border: none;
+  border-radius: 14px; padding: 16px; font-size: 1rem;
+  font-weight: 700; cursor: pointer; width: 100%; margin-top: 4px;
+}
+.aisle-scan-cancel { background: none; color: #6B7280; border: none; font-size: .9rem; cursor: pointer; }
+/* ── Barcode scanner overlay ─────────────────────────────────────── */
+.scan-overlay {
+  position: absolute; inset: 0; z-index: 300; background: #000;
+  flex-direction: column; align-items: center; justify-content: center;
+  display: none;
+}
+.scan-overlay.open { display: flex; }
+#barcodeVideo { width: 100%; max-height: 55dvh; object-fit: cover; }
+.scan-frame {
+  position: absolute; width: 220px; height: 140px;
+  border: 3px solid #fff; border-radius: 12px;
+  top: 50%; left: 50%; transform: translate(-50%, -55%);
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.45);
+}
+.scan-line {
+  position: absolute; width: 196px; height: 2.5px; background: var(--hd-orange);
+  left: 50%; transform: translateX(-50%);
+  animation: scan-anim 1.6s ease-in-out infinite;
+}
+@keyframes scan-anim {
+  0%,100% { top: calc(50% - 64px); } 50% { top: calc(50% + 5px); }
+}
+.scan-hint {
+  position: absolute; bottom: 120px; color: #fff; font-size: .8rem;
+  font-weight: 600; text-align: center; padding: 0 28px; line-height: 1.4;
+}
+.scan-cancel-btn {
+  position: absolute; bottom: 44px; background: rgba(255,255,255,.18);
+  color: #fff; border: none; border-radius: 99px;
+  padding: 10px 32px; font-size: .88rem; font-weight: 700; cursor: pointer;
+}
+/* ── Aisle companion GPS indicator ───────────────────────────────── */
+.companion-dot {
+  display: none; width: 7px; height: 7px; border-radius: 50%;
+  background: #22C55E; margin-left: 6px; vertical-align: middle;
+  animation: pulse-green 2s ease-in-out infinite;
+}
+.companion-dot.active { display: inline-block; }
+@keyframes pulse-green {
+  0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.5)}
+}
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <!-- ── Header ── -->
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="logo">GemmaCart <span style="font-size:.9rem">🛒</span></div>
+        <div class="logo-sub">Home Depot In-Store Assistant</div>
+      </div>
+      <div class="model-badge">
+        <div class="dot" id="modelDot"></div>
+        <span id="modelLabel">Gemma 4</span>
+      </div>
+    </div>
+    <div class="store-banner" id="storeBanner">
+      <div class="store-icon">🏪</div>
+      <div style="flex:1">
+        <div class="store-name" id="storeName">Detecting location…</div>
+        <div class="store-addr" id="storeAddr">Allow location access to check in</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="companion-dot" id="companionDot" title="Aisle tracking active"></span>
+        <div class="store-status locating" id="storeStatus">Locating</div>
+        <button id="simBtn" title="Simulate being in store (demo/test)"
+          onclick="toggleSimInStore()"
+          style="display:none;font-size:.6rem;padding:2px 7px;border:1px solid rgba(255,255,255,.5);
+                 background:rgba(255,255,255,.15);color:#fff;border-radius:6px;cursor:pointer;
+                 font-weight:700;white-space:nowrap">I'm here</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Chat area ── -->
+  <div class="chat" id="chat">
+    <!-- Welcome shown when chat is empty -->
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">🔨</div>
+      <div class="welcome-title">Hi! I'm your shopping assistant</div>
+      <div class="welcome-sub">Tell me what you need and I'll find it in the store with exact aisle directions.</div>
+    </div>
+  </div>
+
+  <!-- ── Quick prompts ── -->
+  <div class="quick-wrap" id="quickWrap">
+    <div class="quick-chip" onclick="sendQuick('Where can I find a cordless drill?')">🔋 Cordless drill</div>
+    <div class="quick-chip" onclick="sendQuick('I need PVC pipes and fittings')">🚿 PVC pipes</div>
+    <div class="quick-chip" onclick="sendQuick('Show me LED light bulbs')">💡 LED bulbs</div>
+    <div class="quick-chip" onclick="sendQuick('Interior paint rollers and brushes')">🎨 Paint supplies</div>
+    <div class="quick-chip" onclick="sendQuick('I need wood screws and anchors')">🔩 Fasteners</div>
+    <div class="quick-chip" onclick="sendQuick('Garden hose and nozzle')">🌱 Garden hose</div>
+  </div>
+
+  <!-- ── Live compass navigation bar (shown when navigating) ── -->
+  <div class="nav-bar" id="navBar">
+    <div class="nav-compass-wrap">
+      <span class="nav-arrow" id="navArrow">&#8593;</span>
+    </div>
+    <div class="nav-bar-info">
+      <div class="nav-bar-dest" id="navBarDest">Finding product…</div>
+      <div class="nav-bar-sub" id="navBarSub">Tap the map to set your location</div>
+    </div>
+    <div class="nav-bar-dist" id="navBarDist">—<span>away</span></div>
+    <button class="nav-bar-close" onclick="closeNavBar()" title="Close navigation">✕</button>
+  </div>
+
+  <!-- ── Input bar ── -->
+  <div class="input-bar">
+    <!-- Vertical action menu (slides in above input-row when + is tapped) -->
+    <div class="action-menu" id="actionMenu">
+      <div class="action-menu-inner">
+        <button class="action-item" title="Shopping list" onclick="closeActionMenu();openList()">
+          🛒<span class="cart-badge" id="cartBadge" style="position:absolute;top:-3px;right:-3px"></span>
+        </button>
+        <button class="action-item" title="Scan barcode" onclick="closeActionMenu();startBarcodeScanner()">🔍</button>
+        <button class="action-item" title="Upload photo" onclick="closeActionMenu();document.getElementById('fileInput').click()">📷</button>
+      </div>
+    </div>
+    <div class="input-row">
+      <button class="plus-btn" id="plusBtn" title="More actions" onclick="toggleActionMenu()">+</button>
+      <input type="file" id="fileInput" accept="image/*" capture="environment" onchange="handleImageUpload(this)"/>
+      <div class="input-wrap">
+        <input class="msg-input" id="msgInput" type="text"
+          placeholder="What are you looking for?"
+          onkeydown="if(event.key==='Enter')sendMessage()"
+          oninput="updateSendBtn()"/>
+      </div>
+      <button class="voice-btn" id="voiceBtn" title="Voice input" onclick="toggleVoice()">🎙️</button>
+      <button class="send-btn" id="sendBtn" disabled onclick="sendMessage()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- ── Barcode scanner (full-screen camera) ── -->
+  <div class="scan-overlay" id="scanOverlay">
+    <video id="barcodeVideo" autoplay muted playsinline></video>
+    <div class="scan-frame"></div>
+    <div class="scan-line"></div>
+    <div class="scan-hint" id="scanHint">Point camera at a barcode or product label</div>
+    <button class="scan-cancel-btn" onclick="stopBarcodeScanner()">Cancel</button>
+  </div>
+
+  <!-- ── Shopping list overlay (bottom sheet) ── -->
+  <div class="list-overlay" id="listOverlay" onclick="handleListOverlayClick(event)">
+    <div class="list-sheet">
+      <div class="map-handle"></div>
+      <div class="list-header">
+        <span class="list-title">Shopping List</span>
+        <span class="list-count" id="listCount"></span>
+        <button class="list-route-btn" id="listRouteBtn" onclick="startRouteFromList()" disabled>🗺 Route</button>
+        <button class="map-close" onclick="closeList()">✕</button>
+      </div>
+      <div class="list-items" id="listItems"></div>
+      <div class="list-empty" id="listEmpty">
+        Your list is empty.<br>Search for a product and tap <strong>+ Add to list</strong>.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── In-app map overlay (bottom sheet) ── -->
+  <div class="map-overlay" id="mapOverlay" onclick="handleMapOverlayClick(event)">
+    <div class="map-sheet" id="mapSheet">
+      <div class="map-handle"></div>
+      <div class="map-header">
+        <div class="map-header-text">
+          <div class="map-title" id="mapTitle">Finding your product…</div>
+          <div class="map-subtitle" id="mapSubtitle"></div>
+        </div>
+        <!-- Reset clears saved position back to entrance (only visible in-store) -->
+        <button class="map-reset-btn" id="mapResetBtn" onclick="resetMyLocation()" style="display:none" title="Reset my location">↺ Reset</button>
+        <!-- Voice turn-by-turn toggle -->
+        <button class="map-voice-btn" id="mapVoiceBtn" onclick="toggleMapVoice()" title="Voice directions off">🔇</button>
+        <button class="map-close" onclick="closeMap()">✕</button>
+      </div>
+      <!-- Shown when user is not physically in the store -->
+      <div class="map-preview-banner" id="mapPreviewBanner">
+        🏠 <strong>Preview mode</strong> — you're not in the store yet.<br>
+        This shows where the item will be when you arrive.
+      </div>
+      <!-- Direction view: shown instead of canvas when navigating in-store -->
+      <div class="dir-view" id="dirView">
+        <!-- AR camera background (rear camera feed, hidden until activated) -->
+        <video id="arCamera" autoplay playsinline muted></video>
+        <div class="dir-arrow-ring">
+          <span class="dir-arrow-big" id="dirArrowBig">&#8593;</span>
+        </div>
+        <!-- Step-by-step navigation instructions -->
+        <div class="nav-steps" id="navSteps"></div>
+        <div class="dir-dept" id="dirDept">—</div>
+        <div class="dir-aisle" id="dirAisle"></div>
+        <div class="dir-product" id="dirProduct"></div>
+        <div class="dir-dist-row">
+          <span class="dir-dist-num" id="dirDistNum">—</span>
+          <span class="dir-dist-unit" id="dirDistUnit"></span>
+        </div>
+        <div style="display:flex;gap:6px;position:relative;z-index:1;flex-wrap:wrap;justify-content:center">
+          <button class="dir-map-toggle" onclick="toggleDirMap()">📐 Map</button>
+          <button class="dir-ar-btn" id="arBtn" onclick="toggleARCamera()">📷 Camera</button>
+          <button class="dir-ar-btn" style="background:rgba(0,0,0,.1)" onclick="openAisleScan()">📍 My Aisle</button>
+        </div>
+      </div>
+
+      <div class="map-canvas-wrap">
+        <canvas id="mapCanvas"></canvas>
+        <!-- Shown when user location is unknown; fades out after first tap -->
+        <div class="loc-prompt" id="locPrompt">
+          <div class="loc-prompt-icon">👆</div>
+          <p>Tap your current<br>section on the map</p>
+        </div>
+      </div>
+      <!-- Aisle scan overlay: numeric keypad to tell app which aisle user is in -->
+      <div class="aisle-scan-overlay" id="aisleScanOverlay">
+        <div class="aisle-scan-card">
+          <div class="aisle-scan-title">📍 What Aisle Are You In?</div>
+          <div class="aisle-scan-hint">Look at the orange sign overhead and tap the number.<br>Garden section? Tap G.</div>
+          <div class="aisle-input-display" id="aisleInputDisplay">__</div>
+          <div class="aisle-numpad">
+            <button class="aisle-key" onclick="aisleKey('1')">1</button>
+            <button class="aisle-key" onclick="aisleKey('2')">2</button>
+            <button class="aisle-key" onclick="aisleKey('3')">3</button>
+            <button class="aisle-key" onclick="aisleKey('4')">4</button>
+            <button class="aisle-key" onclick="aisleKey('5')">5</button>
+            <button class="aisle-key" onclick="aisleKey('6')">6</button>
+            <button class="aisle-key" onclick="aisleKey('7')">7</button>
+            <button class="aisle-key" onclick="aisleKey('8')">8</button>
+            <button class="aisle-key" onclick="aisleKey('9')">9</button>
+            <button class="aisle-key garden" onclick="aisleKey('G')">G</button>
+            <button class="aisle-key zero" onclick="aisleKey('0')">0</button>
+            <button class="aisle-key del" onclick="aisleKey('⌫')">⌫</button>
+          </div>
+          <button class="aisle-scan-confirm" onclick="confirmAisle()">Confirm — Update My Location</button>
+          <button class="aisle-scan-cancel" onclick="closeAisleScan()">Cancel</button>
+        </div>
+      </div>
+      <!-- Quick "I'm here" chips – one per department (hidden outside store) -->
+      <div class="sec-chips" id="secChips"></div>
+      <div class="map-product-info" id="mapProductInfo" style="display:none">
+        <div class="map-pname" id="mapPname"></div>
+        <div class="map-pdesc" id="mapPdesc"></div>
+      </div>
+      <!-- Confirms arrival and updates user's position for the next navigation -->
+      <button class="map-found-btn" id="mapFoundBtn" onclick="markAsFound()" style="display:none">
+        ✓ I found it! Update my location
+      </button>
+      <div class="map-legend">
+        <span id="legendYou">🟢 You are here (Entrance)</span>
+        <span>📍 Product location</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? ''   // same origin
+  : '';  // same origin always
+
+// ── State ──────────────────────────────────────────────────────────────
+let isTyping    = false;
+let recognition = null;
+let isListening = false;
+let currentStore = null;
+let isInStore    = false;   // updated by geofence; controls map mode
+
+// ── Init ───────────────────────────────────────────────────────────────
+(async () => {
+  await Promise.all([checkModelStatus(), detectStore()]);
+})();
+
+// ── Model status ────────────────────────────────────────────────────────
+async function checkModelStatus() {
+  try {
+    const r = await fetch(`${API}/api/model/status`);
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.status === 'online') {
+      document.getElementById('modelDot').classList.add('on');
+      document.getElementById('modelLabel').textContent = d.active_model || 'Gemma 4';
+    }
+  } catch {}
+}
+
+// ── Geofence / store detection ──────────────────────────────────────────
+// No hardcoded store — we find the real nearest Home Depot from the user's location.
+let HD_STORE = null;  // set after locate succeeds
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Reverse-geocode lat/lng → ZIP using OpenStreetMap Nominatim (free, no key needed).
+async function getZipFromCoords(lat, lng) {
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    const d = await r.json();
+    return d.address?.postcode?.split('-')[0] || null;
+  } catch { return null; }
+}
+
+async function detectStore() {
+  if (!navigator.geolocation) {
+    setStoreUI(null, 'no_store');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    async pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+
+      // Get ZIP from user's real location, then find nearest HD
+      const zip = await getZipFromCoords(lat, lng);
+      if (zip) {
+        try {
+          const r = await fetch(`${API}/api/store/locate?zip=${zip}`);
+          if (r.ok) {
+            const store = await r.json();
+            if (!store.error) {
+              // Attach user's GPS coords so in-store navigation works
+              // Compute distance user→store using haversine; backend doesn't return distance_km
+              // DO NOT store user GPS as store coords — keep store.lat/lng for actual store position
+              // If the backend didn't return lat/lng, fall back to ZIP match.
+              // A matching ZIP means the user is almost certainly at or near that store.
+              const zipMatch = zip && store.zip && zip === String(store.zip).substring(0, 5);
+              const dist = (store.lat && store.lng)
+                ? haversineKm(lat, lng, store.lat, store.lng)
+                : zipMatch ? 0.1            // same ZIP → treat as on-site
+                : (store.distance_km ?? 999);
+              const nearby = dist < 0.5;
+              // Store user's GPS separately for in-store navigation
+              if (!nearby) { store.lat = store.lat || lat; store.lng = store.lng || lng; }
+              HD_STORE = store;
+              setStoreUI(store, nearby ? 'nearby' : 'away', dist);
+              if (nearby) showToast('📍 You\'re at the store! Ready to help you find products.');
+              return;
+            }
+          }
+        } catch { /* fall through */ }
+      }
+      // Could not locate a nearby store
+      setStoreUI(null, 'no_store');
+    },
+    () => {
+      // Location permission denied — ask for ZIP manually
+      setStoreUI(null, 'no_store');
+    },
+    { timeout: 10000, maximumAge: 60000 }
+  );
+}
+
+function setStoreUI(store, status, distKm) {
+  currentStore = store;
+  const wasInStore = isInStore;
+  isInStore = (status === 'nearby');
+
+  // Start/stop aisle companion based on in-store status
+  if (!wasInStore && isInStore) startAisleCompanion();
+  if (wasInStore && !isInStore) { stopAisleCompanion(); userPos = null; }
+
+  if (!store || status === 'no_store') {
+    // No nearby Home Depot found — prompt user to enter ZIP
+    document.getElementById('storeName').textContent = 'No store found nearby';
+    document.getElementById('storeAddr').textContent = 'Enter your ZIP code to find your nearest Home Depot';
+    const badge = document.getElementById('storeStatus');
+    badge.textContent = 'Set store';
+    badge.className = 'store-status away';
+    badge.style.cursor = 'pointer';
+    badge.onclick = () => promptZipSearch();
+    const simBtn = document.getElementById('simBtn');
+    if (simBtn) simBtn.style.display = 'block';
+    return;
+  }
+
+  document.getElementById('storeName').textContent = store.name;
+  document.getElementById('storeAddr').textContent =
+    status === 'nearby'
+      ? `✓ You're here · ${store.address}`
+      : distKm != null
+        ? `${store.address} · ${(distKm * 0.621).toFixed(1)} mi away`
+        : store.address;
+
+  const badge = document.getElementById('storeStatus');
+  badge.textContent = status === 'nearby' ? 'You\'re here' : 'Near';
+  badge.className = `store-status ${status}`;
+  badge.style.cursor = '';
+  badge.onclick = null;
+
+  // Always show "I'm here" — GPS fails indoors; user must be able to confirm manually
+  const simBtn = document.getElementById('simBtn');
+  if (simBtn) simBtn.style.display = 'block';
+}
+
+function promptZipSearch() {
+  const zip = prompt('Enter your ZIP code to find your nearest Home Depot:');
+  if (!zip || zip.trim().length < 4) return;
+  fetch(`${API}/api/store/locate?zip=${zip.trim()}`)
+    .then(r => r.json())
+    .then(store => {
+      if (store.error) { showToast('No Home Depot found for that ZIP.'); return; }
+      HD_STORE = store;
+      setStoreUI(store, 'away');
+      showToast(`Store set: ${store.name}`);
+    })
+    .catch(() => showToast('Could not look up that ZIP. Check your connection.'));
+}
+
+let _simActive = false;
+function toggleSimInStore() {
+  _simActive = !_simActive;
+  const simBtn = document.getElementById('simBtn');
+  if (_simActive) {
+    simBtn.textContent = 'I\'m here ✓';
+    simBtn.style.background = 'rgba(34,197,94,.4)';
+    isInStore = true;
+    if (!_watchId) startAisleCompanion();
+    document.getElementById('storeStatus').textContent = 'You\'re here';
+    document.getElementById('storeStatus').className = 'store-status nearby';
+    document.getElementById('storeAddr').textContent = '✓ In-store mode — full navigation enabled';
+    showToast('📍 In-store mode on — navigation ready', 2500);
+  } else {
+    simBtn.textContent = 'I\'m here';
+    simBtn.style.background = 'rgba(255,255,255,.15)';
+    isInStore = false;
+    stopAisleCompanion();
+    userPos = null;
+    document.getElementById('storeStatus').textContent = 'Near';
+    document.getElementById('storeStatus').className = 'store-status away';
+    document.getElementById('storeAddr').textContent = (currentStore || HD_STORE)?.address || 'Enter ZIP to set store';
+    showToast('Simulation OFF', 1500);
+  }
+}
+
+// ── Messaging ───────────────────────────────────────────────────────────
+// Pending image state
+let _pendingImageFile = null;
+
+function updateSendBtn() {
+  const hasText  = !!document.getElementById('msgInput').value.trim();
+  const hasImage = !!_pendingImageFile;
+  document.getElementById('sendBtn').disabled = (!hasText && !hasImage) || isTyping;
+}
+
+function _attachImagePreview(file) {
+  _pendingImageFile = file;
+  const wrap = document.querySelector('.input-wrap');
+  // Remove any existing preview
+  wrap.querySelector('.img-preview-chip')?.remove();
+  const chip = document.createElement('div');
+  chip.className = 'img-preview-chip';
+  const img = document.createElement('img');
+  img.src = URL.createObjectURL(file);
+  const rmBtn = document.createElement('button');
+  rmBtn.className = 'img-preview-remove';
+  rmBtn.title = 'Remove photo';
+  rmBtn.textContent = '✕';
+  rmBtn.onclick = () => _clearImagePreview();
+  chip.appendChild(img);
+  chip.appendChild(rmBtn);
+  wrap.insertBefore(chip, wrap.querySelector('.msg-input'));
+  wrap.classList.add('has-image');
+  document.getElementById('msgInput').placeholder = 'Add a description (optional)…';
+  updateSendBtn();
+}
+
+function _clearImagePreview() {
+  _pendingImageFile = null;
+  const wrap = document.querySelector('.input-wrap');
+  wrap.querySelector('.img-preview-chip')?.remove();
+  wrap.classList.remove('has-image');
+  document.getElementById('msgInput').placeholder = 'What are you looking for?';
+  document.getElementById('fileInput').value = '';
+  updateSendBtn();
+}
+
+function closeActionMenu() {
+  const menu = document.getElementById('actionMenu');
+  const btn  = document.getElementById('plusBtn');
+  menu.classList.remove('open');
+  btn.classList.remove('open');
+}
+
+function toggleActionMenu() {
+  const menu = document.getElementById('actionMenu');
+  const btn  = document.getElementById('plusBtn');
+  const open = menu.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  // Close when tapping anywhere outside the menu
+  if (open) {
+    setTimeout(() => {
+      document.addEventListener('click', function _close(e) {
+        if (!menu.contains(e.target) && e.target !== btn) {
+          closeActionMenu();
+        }
+        document.removeEventListener('click', _close);
+      });
+    }, 50);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// COMPASS NAVIGATION BAR
+// Shows a live rotating arrow pointing toward the product aisle.
+// Uses DeviceOrientationEvent (compass) when available; falls back
+// to a static bearing arrow derived from grid position.
+// ════════════════════════════════════════════════════════════════════
+let _compassHeading = null;   // degrees from magnetic north (0 = north)
+let _compassWatchOn = false;
+
+function _storeBearingDeg(fromPos, product) {
+  // Convert grid delta to a compass bearing (0° = north = up in store)
+  const dx = (product.gx || 8) - (fromPos ? fromPos.gx : 8);
+  const dy = (product.gy || 5) - (fromPos ? fromPos.gy : 5);
+  // In our grid: x increases east, y increases south → atan2(dx, -dy) = bearing
+  return (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+}
+
+function _updateNavArrow() {
+  if (!_navProduct || !_storeLayout) return;
+  const fromPos = userPos || { gx: _storeLayout.entrance?.gx || 8, gy: _storeLayout.entrance?.gy || 9 };
+  const bearing = _storeBearingDeg(fromPos, _navProduct);
+  const heading = _compassHeading ?? 0;
+  const rotation = (bearing - heading + 360) % 360;
+  const arrow = document.getElementById('navArrow');
+  if (arrow) arrow.style.transform = `rotate(${rotation}deg)`;
+  // Also rotate the big direction-view arrow
+  const bigArrow = document.getElementById('dirArrowBig');
+  if (bigArrow) bigArrow.style.transform = `rotate(${rotation}deg)`;
+}
+
+function _startCompassWatch() {
+  if (_compassWatchOn) return;
+
+  const handle = (e) => {
+    // iOS: webkitCompassHeading; Android: 360 - alpha (approx)
+    const h = e.webkitCompassHeading != null
+      ? e.webkitCompassHeading
+      : e.alpha != null ? (360 - e.alpha) % 360 : null;
+    if (h == null) return;
+    _compassHeading = h;
+    _updateNavArrow();
+  };
+
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+ requires permission
+    DeviceOrientationEvent.requestPermission()
+      .then(r => { if (r === 'granted') { window.addEventListener('deviceorientation', handle, true); _compassWatchOn = true; } })
+      .catch(() => {});
+  } else if (typeof DeviceOrientationEvent !== 'undefined') {
+    window.addEventListener('deviceorientation', handle, true);
+    _compassWatchOn = true;
+  }
+}
+
+function openNavBar(product, fromPos) {
+  if (!product) return;
+  const bar = document.getElementById('navBar');
+  const dest = document.getElementById('navBarDest');
+  const sub  = document.getElementById('navBarSub');
+  const dist = document.getElementById('navBarDist');
+  if (!bar) return;
+
+  const fp = fromPos || userPos;
+  const gridDist = fp
+    ? Math.sqrt(Math.pow((product.gx||8) - fp.gx, 2) + Math.pow((product.gy||5) - fp.gy, 2))
+    : null;
+  const metres = gridDist ? Math.round(gridDist * 6) : null;
+  const feet   = metres   ? Math.round(metres * 3.281) : null;
+
+  dest.textContent = product.name.length > 32 ? product.name.slice(0, 30) + '…' : product.name;
+  sub.textContent  = product.aisle
+    ? product.aisle
+    : (product.section?.replace(/_/g,' ') || 'Store');
+  dist.innerHTML   = feet
+    ? `${feet}<span>ft away</span>`
+    : `<span>Tap map</span>`;
+
+  // ── Populate direction view ────────────────────────────────────────
+  const aisleStr   = product.aisle || '';
+  const aisleMatch = aisleStr.match(/Aisle\s+0*(\d+)/i);
+  const aisleNum   = aisleMatch ? parseInt(aisleMatch[1], 10) : null;
+  const deptLabel  = aisleStr.split('·')[0].trim()
+    || (product.section || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const deptEl  = document.getElementById('dirDept');
+  const aisleEl = document.getElementById('dirAisle');
+  const prodEl  = document.getElementById('dirProduct');
+  const distNum = document.getElementById('dirDistNum');
+  const distUnit= document.getElementById('dirDistUnit');
+  if (deptEl)  deptEl.textContent  = deptLabel  || '—';
+  if (prodEl)  prodEl.textContent  = product.name.split(',')[0];
+  if (distNum) { distNum.textContent = feet ? feet : '—'; }
+  if (distUnit){ distUnit.textContent = feet ? 'ft away' : ''; }
+
+  // Populate step-by-step nav instructions
+  renderNavSteps(buildNavSteps(fp, product));
+
+  // Update dir-aisle to show aisle + bay (parsed from product.aisle or computed)
+  if (aisleEl) {
+    const bayMatch = (product.aisle || '').match(/Bay\s*(\d+)/i);
+    const bayNum   = bayMatch ? parseInt(bayMatch[1]) : _gyToBay(product.gy || 4);
+    aisleEl.textContent = aisleNum
+      ? `Aisle ${aisleNum < 10 ? '0'+aisleNum : aisleNum}, Bay ${bayNum}`
+      : (deptLabel ? '' : '—');
+  }
+
+  bar.classList.add('show');
+  _updateNavArrow();
+  _startCompassWatch();
+}
+
+function closeNavBar() {
+  const bar = document.getElementById('navBar');
+  if (bar) bar.classList.remove('show');
+}
+
+function sendQuick(text) {
+  document.getElementById('msgInput').value = text;
+  updateSendBtn();
+  sendMessage();
+}
+
+async function sendMessage() {
+  if (isTyping) return;
+  const input = document.getElementById('msgInput');
+  const text  = input.value.trim();
+
+  // If there's a pending image, send it (with optional text as hint)
+  if (_pendingImageFile) {
+    const file = _pendingImageFile;
+    const imgUrl = URL.createObjectURL(file);
+    _clearImagePreview();
+    input.value = '';
+    updateSendBtn();
+    appendUserBubble(text, imgUrl);
+    hideWelcome();
+    const typingId = appendTypingBubble();
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('hint', text);
+      const r = await fetch(`${API}/api/search/image`, { method: 'POST', body: fd });
+      if (!r.ok) throw new Error(`Image search failed (${r.status})`);
+      const d = await r.json();
+      removeTyping(typingId);
+      renderAIResponse(d, { fromImage: true, isSimilar: !!d.similar });
+    } catch {
+      removeTyping(typingId);
+      appendAIBubble('Sorry, I couldn\'t process that image. Please try again.');
+    }
+    return;
+  }
+
+  if (!text) return;
+  input.value = '';
+  updateSendBtn();
+  appendUserBubble(text);
+  await runSearch(text);
+}
+
+function handleImageUpload(inputEl) {
+  const file = inputEl.files[0];
+  if (!file) return;
+  // Show preview in input bar — send happens when user taps Send
+  _attachImagePreview(file);
+  document.getElementById('msgInput').focus();
+}
+
+function _getChatHistory(maxTurns = 6) {
+  // Collect the last N user/assistant messages from the visible chat bubbles
+  const bubbles = document.querySelectorAll('.bubble-user, .bubble-ai');
+  const history = [];
+  for (const b of bubbles) {
+    const role = b.classList.contains('bubble-user') ? 'user' : 'assistant';
+    const text = b.innerText?.trim();
+    if (text) history.push({ role, content: text });
+  }
+  // Return last maxTurns messages (exclude the one we're about to send)
+  return history.slice(-maxTurns);
+}
+
+async function runSearch(query) {
+  isTyping = true;
+  hideWelcome();
+  const typingId = appendTypingBubble();
+  try {
+    const history = _getChatHistory();
+    const r = await fetch(`${API}/api/search/text`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, history }),
+    });
+    if (!r.ok) throw new Error(`Search failed (${r.status})`);
+    const d = await r.json();
+    removeTyping(typingId);
+    renderAIResponse(d);
+  } catch {
+    removeTyping(typingId);
+    appendAIBubble('Connection error. Make sure the GemmaCart server is running.');
+  } finally {
+    isTyping = false;
+  }
+}
+
+// ── Render AI response ──────────────────────────────────────────────────
+function renderAIResponse(d, opts = {}) {
+  const reply    = d.reply    || '';
+  const products = d.products || [];
+  const route    = d.route    || {};
+  const source   = d.source   || '';
+  const warning  = d.warning  || '';
+
+  // "Similar products" label — set by backend when exact match wasn't found
+  const isSimilar = opts.isSimilar;
+
+  if (reply) {
+    appendAIBubble(reply + sourceBadge(source) + (warning ? `<br><span style="color:#EF4444;font-size:.7rem">⚠ ${warning}</span>` : ''));
+  }
+
+  if (products.length) {
+    appendProductCards(products, isSimilar);
+  }
+
+  if (route.steps && route.steps.length) {
+    appendRouteCard(route);
+  }
+
+  if (!reply && !products.length) {
+    appendAIBubble('I couldn\'t find an exact match. Try describing the product differently or use the 🔍 barcode scanner.');
+  }
+
+  scrollChat();
+}
+
+function sourceBadge(source) {
+  const map = {
+    local_db:      { cls: 'live',     label: 'Live HD data' },
+    serpapi_live:  { cls: 'live',     label: 'Live from SerpAPI' },
+    local_fallback:{ cls: 'fallback', label: 'Offline catalogue' },
+  };
+  const s = map[source] || { cls: 'local', label: source };
+  return `<span class="source-badge"><span class="source-dot ${s.cls}"></span>${s.label}</span>`;
+}
+
+// ── Bubble helpers ──────────────────────────────────────────────────────
+function hideWelcome() {
+  const w = document.getElementById('welcome');
+  if (w) w.remove();
+}
+
+function appendUserBubble(text, imgUrl) {
+  const wrap = div('bubble-wrap user');
+  if (imgUrl) {
+    const b = div('bubble user');
+    const img = document.createElement('img');
+    img.src = imgUrl; img.className = 'chat-img';
+    if (text) b.textContent = text;
+    b.appendChild(img);
+    wrap.appendChild(b);
+  } else {
+    const b = div('bubble user');
+    b.textContent = text;
+    wrap.appendChild(b);
+  }
+  wrap.appendChild(timeLabel());
+  chat().appendChild(wrap);
+  scrollChat();
+}
+
+function appendAIBubble(html) {
+  const wrap = div('bubble-wrap ai');
+  const b = div('bubble ai');
+  b.innerHTML = html;
+  wrap.appendChild(b);
+  wrap.appendChild(timeLabel());
+  chat().appendChild(wrap);
+  scrollChat();
+  return wrap;
+}
+
+let _typingCounter = 0;
+function appendTypingBubble() {
+  const id = `typing-${_typingCounter++}`;
+  const wrap = div('bubble-wrap ai');
+  wrap.id = id;
+  const b = div('bubble typing');
+  b.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+  wrap.appendChild(b);
+  chat().appendChild(wrap);
+  scrollChat();
+  return id;
+}
+function removeTyping(id) {
+  document.getElementById(id)?.remove();
+}
+
+function appendProductCards(products, isSimilar) {
+  const wrap = div('cards-wrap');
+  const label = div('cards-label');
+  if (isSimilar) {
+    label.innerHTML = `<span style="color:var(--hd-orange)">✦</span> Similar products — exact match not found`;
+  } else {
+    label.textContent = `${products.length} product${products.length > 1 ? 's' : ''} found`;
+  }
+  wrap.appendChild(label);
+
+  const scroll = div('cards-scroll');
+  for (const p of products) {
+    scroll.appendChild(makeProductCard(p));
+  }
+  wrap.appendChild(scroll);
+  chat().appendChild(wrap);
+}
+
+function makeProductCard(p) {
+  const card = div('prod-card');
+
+  if (p.image) {
+    const img = document.createElement('img');
+    img.src = p.image; img.className = 'prod-img';
+    img.onerror = () => img.replaceWith(makePlaceholder(p.category));
+    img.onclick = () => openProduct(p);
+    card.appendChild(img);
+  } else {
+    const ph = makePlaceholder(p.category);
+    ph.onclick = () => openProduct(p);
+    card.appendChild(ph);
+  }
+
+  const body = div('prod-body');
+  body.innerHTML = `
+    <div class="prod-name">${esc(p.name)}</div>
+    <div class="prod-brand">${esc(p.brand || '')}</div>
+    <div class="prod-price">${p.price ? '$' + p.price.toFixed(2) : 'See price'}</div>
+    <div class="prod-aisle"><span class="aisle-pin">📍</span>${esc(p.aisle || p.section || '')}</div>
+  `;
+
+  // Navigate button — only when product has grid coordinates
+  if (p.gx != null && p.gy != null) {
+    const navBtn = document.createElement('button');
+    navBtn.className = 'nav-btn';
+    navBtn.textContent = '🗺 Navigate to this item';
+    navBtn.onclick = (e) => { e.stopPropagation(); openMap(p); };
+    body.appendChild(navBtn);
+  }
+
+  // View on Home Depot button
+  const hdUrl = hdProductUrl(p);
+  if (hdUrl) {
+    const hdBtn = document.createElement('button');
+    hdBtn.className = 'hd-link-btn';
+    hdBtn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> View on homedepot.com';
+    hdBtn.onclick = (e) => { e.stopPropagation(); window.open(hdUrl, '_blank'); };
+    body.appendChild(hdBtn);
+  }
+
+  // Add to list button
+  const inList = cartItems.some(i => i.product.id === p.id);
+  const addBtn = document.createElement('button');
+  addBtn.className = `add-cart-btn${inList ? ' in-list' : ''}`;
+  addBtn.textContent = inList ? '✓ In list' : '+ Add to list';
+  addBtn.dataset.pid = p.id;
+  addBtn.onclick = (e) => {
+    e.stopPropagation();
+    if (!cartItems.some(i => i.product.id === p.id)) {
+      addToCart(p);
+    } else {
+      openList();
+    }
+  };
+  body.appendChild(addBtn);
+
+  card.appendChild(body);
+  return card;
+}
+
+function makePlaceholder(category) {
+  const CAT_ICON = {
+    Tools:'🔨', Electrical:'⚡', Plumbing:'🚿', Lumber:'🪵',
+    Hardware:'🔩', Paint:'🎨', Flooring:'🪟', Lighting:'💡',
+    Storage:'📦', Garden:'🌱', Appliances:'🏠', Bath:'🛁',
+    Kitchen:'🍳',
+  };
+  const pl = div('prod-img-placeholder');
+  pl.textContent = CAT_ICON[category] || '🛒';
+  return pl;
+}
+
+function appendRouteCard(route) {
+  const card = div('route-card');
+  const hdr = div('route-header');
+  hdr.innerHTML = `
+    <div class="route-header-icon">🗺️</div>
+    <div class="route-header-text">Shopping Route</div>
+    <div class="route-header-meta">${route.steps.length} stops · ~${route.estimated_minutes || '?'} min</div>
+  `;
+  card.appendChild(hdr);
+
+  const steps = div('route-steps');
+  for (const s of route.steps) {
+    const step = div('route-step');
+    step.innerHTML = `
+      <div class="step-num">${s.stop}</div>
+      <div class="step-info">
+        <div class="step-main">${esc(s.product_name || s.name || '')}</div>
+        <div class="step-sub">${esc(s.aisle || '')} · $${s.price ? s.price.toFixed(2) : '—'}</div>
+      </div>
+    `;
+    steps.appendChild(step);
+  }
+  // Checkout step
+  const checkout = div('route-step');
+  checkout.innerHTML = `
+    <div class="step-num arrow">🏁</div>
+    <div class="step-info">
+      <div class="step-main">Proceed to Checkout</div>
+      <div class="step-sub">You're all set!</div>
+    </div>
+  `;
+  steps.appendChild(checkout);
+  card.appendChild(steps);
+  chat().appendChild(card);
+}
+
+function hdProductUrl(p) {
+  let url = p.url || '';
+  // Fix internal apionline API URLs → public product page
+  url = url.replace(/https?:\/\/apionline\.homedepot\.com\/p\/sets\//gi, 'https://www.homedepot.com/p/');
+  url = url.replace(/https?:\/\/apionline\.homedepot\.com/gi, 'https://www.homedepot.com');
+  url = url.replace(/^http:\/\//i, 'https://');
+  // If no real URL (local catalogue products have no real HD URLs),
+  // use a search URL — always works and shows available products
+  if (!url && p.name) {
+    url = `https://www.homedepot.com/s/${encodeURIComponent(p.name)}`;
+  }
+  return url;
+}
+
+function openProduct(p) {
+  const url = hdProductUrl(p);
+  if (url) window.open(url, '_blank');
+  else showToast(`${p.name} · ${p.aisle}`);
+}
+
+// ── Voice input ─────────────────────────────────────────────────────────
+function toggleVoice() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    showToast('Voice input not supported in this browser');
+    return;
+  }
+  if (isListening) {
+    recognition?.stop();
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  recognition.onstart = () => {
+    isListening = true;
+    document.getElementById('voiceBtn').classList.add('listening');
+    showToast('Listening… speak now');
+  };
+  recognition.onresult = e => {
+    const transcript = e.results[0][0].transcript;
+    document.getElementById('msgInput').value = transcript;
+    updateSendBtn();
+    sendMessage();
+  };
+  recognition.onerror = recognition.onend = () => {
+    isListening = false;
+    document.getElementById('voiceBtn').classList.remove('listening');
+  };
+  recognition.start();
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────
+function div(cls) {
+  const el = document.createElement('div');
+  el.className = cls;
+  return el;
+}
+function chat() { return document.getElementById('chat'); }
+function scrollChat() {
+  const c = chat();
+  requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; });
+}
+function timeLabel() {
+  const t = div('bubble-time');
+  t.textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  return t;
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+let toastTimer;
+function showToast(msg, duration = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ── In-app mini-map ─────────────────────────────────────────────────
+let _storeLayout = null;
+let _mapCP       = 20;   // px per grid cell – updated each draw
+let _navProduct  = null; // product currently being navigated to
+let _multiStopProducts = null;  // full product array when doing a route (null = single-stop)
+let _multiStopIdx      = 0;     // index of the stop currently being navigated to
+// userPos persists across map opens – updated by tap, chip, or "Mark as Found"
+// null = unknown (show entrance as default + show prompt overlay)
+let userPos      = null;
+
+async function loadLayout() {
+  if (_storeLayout) return _storeLayout;
+  try {
+    const r = await fetch(`${API}/api/store/layout`);
+    if (!r.ok) throw new Error(`Layout fetch failed (${r.status})`);
+    _storeLayout = await r.json();
+  } catch { _storeLayout = null; }
+  return _storeLayout;
+}
+
+// Preload layout silently on startup
+loadLayout();
+
+async function openMap(product) {
+  _navProduct = product;
+  // Single-product navigation — clear any in-progress route
+  _multiStopProducts = null;
+  _multiStopIdx = 0;
+  const overlay = document.getElementById('mapOverlay');
+  overlay.classList.add('open');
+
+  document.getElementById('mapTitle').textContent    = 'Finding your route…';
+  document.getElementById('mapSubtitle').textContent = '';
+  document.getElementById('mapProductInfo').style.display = 'none';
+  document.getElementById('mapFoundBtn').style.display   = 'none';
+  document.getElementById('mapResetBtn').style.display   = 'none';
+
+  const layout = await loadLayout();
+  if (!layout) {
+    document.getElementById('mapTitle').textContent = 'Map unavailable';
+    return;
+  }
+
+  // ── Preview mode (user is at home / not in store) ─────────────────
+  const mapSheet     = document.getElementById('mapSheet');
+  const previewBanner = document.getElementById('mapPreviewBanner');
+  if (!isInStore) {
+    mapSheet.classList.remove('dir-mode');   // show canvas, hide direction view
+    previewBanner.classList.add('show');
+    document.getElementById('mapTitle').textContent = 'Product Location';
+    document.getElementById('locPrompt').classList.add('hidden');
+    document.getElementById('secChips').innerHTML = '';
+
+    // Show product info but hide navigation controls
+    document.getElementById('mapPname').textContent = product.name;
+    document.getElementById('mapPdesc').textContent =
+      `${product.brand ? product.brand + ' · ' : ''}${product.aisle || ''}` +
+      `${product.price ? ' · $' + product.price.toFixed(2) : ''}`;
+    document.getElementById('mapProductInfo').style.display = 'block';
+    document.getElementById('mapSubtitle').textContent =
+      (product.aisle || product.section || '').replace(/_/g, ' ');
+    document.getElementById('legendYou').textContent = '🚪 Store entrance';
+
+    // Draw map with entrance reference point only (no route)
+    const entrancePos = { gx: layout.entrance.gx, gy: layout.entrance.gy, sectionId: 'entrance', label: 'Entrance' };
+    drawStoreMap(layout, product, entrancePos);
+
+    // Disable canvas tap in preview mode
+    document.getElementById('mapCanvas').onclick = null;
+    return;
+  }
+
+  // ── Live navigation mode (user is in the store) ───────────────────
+  previewBanner.classList.remove('show');
+  mapSheet.classList.add('dir-mode');      // show direction view, hide canvas
+  document.getElementById('mapTitle').textContent = 'Store Navigation';
+
+  const fromPos = userPos || {
+    gx: layout.entrance.gx, gy: layout.entrance.gy,
+    sectionId: 'entrance', label: 'Entrance',
+  };
+
+  // Show reset button only if the user has set a custom position
+  if (userPos) document.getElementById('mapResetBtn').style.display = 'inline-block';
+
+  _updateMapUI(layout, product, fromPos);
+  renderSectionChips(layout);
+  drawStoreMap(layout, product, fromPos);
+  speakDirections(fromPos, product, null);   // voice turn-by-turn if enabled
+  openNavBar(product, fromPos);        // live compass nav bar
+
+  // Canvas tap → set / update user location
+  const canvas = document.getElementById('mapCanvas');
+  canvas.onclick = (e) => {
+    const rect  = canvas.getBoundingClientRect();
+    const tapGx = (e.clientX - rect.left) / _mapCP;
+    const tapGy = (e.clientY - rect.top)  / _mapCP;
+    const nearest = _nearestSection(tapGx, tapGy, layout);
+    if (!nearest) return;
+    userPos = nearest;
+    document.getElementById('mapResetBtn').style.display = 'inline-block';
+    _applyUserPos(layout, _navProduct, userPos);
+  };
+}
+
+function resetMyLocation() {
+  userPos = null;
+  document.getElementById('mapResetBtn').style.display = 'none';
+  document.getElementById('legendYou').textContent = '🟢 You are here (Entrance)';
+  document.querySelectorAll('.sec-chip').forEach(c => c.classList.remove('active'));
+  if (_storeLayout && _navProduct) {
+    const fromPos = { gx: _storeLayout.entrance.gx, gy: _storeLayout.entrance.gy, sectionId: 'entrance', label: 'Entrance' };
+    document.getElementById('locPrompt').classList.remove('hidden');
+    _updateMapUI(_storeLayout, _navProduct, fromPos);
+    drawStoreMap(_storeLayout, _navProduct, fromPos);
+  }
+  showToast('Location reset to store entrance');
+}
+
+// Update all text + chips + legend after userPos changes
+function _applyUserPos(layout, product, fromPos) {
+  document.getElementById('locPrompt').classList.add('hidden');
+  document.getElementById('legendYou').textContent = `🔵 ${fromPos.label}`;
+  // Highlight active chip
+  document.querySelectorAll('.sec-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.sid === fromPos.sectionId);
+  });
+  _updateMapUI(layout, product, fromPos);
+  drawStoreMap(layout, product, fromPos);
+  openNavBar(product, fromPos);   // refresh compass bar distance + arrow
+}
+
+function _updateMapUI(layout, product, fromPos) {
+  const gridDist = Math.abs(fromPos.gx - product.gx) + Math.abs(fromPos.gy - product.gy);
+  const meters   = Math.round(gridDist * 6);   // HD cells ≈ 6 m each
+  const walkSec  = Math.round(meters / 1.2);   // avg 1.2 m/s in-store pace
+  const walkLbl  = walkSec < 60 ? `${walkSec}s` : `${Math.ceil(walkSec/60)} min`;
+  const aisleLbl = (product.aisle || product.section || '').replace(/_/g, ' ');
+  document.getElementById('mapSubtitle').innerHTML =
+    `${aisleLbl} <span class="map-dist-badge">~${meters} m · ${walkLbl}</span>`;
+
+  // Product card
+  document.getElementById('mapPname').textContent = product.name;
+  document.getElementById('mapPdesc').textContent =
+    `${product.brand ? product.brand + ' · ' : ''}${product.aisle || ''}`
+    + `${product.price ? ' · $' + product.price.toFixed(2) : ''}`;
+  document.getElementById('mapProductInfo').style.display = 'block';
+  document.getElementById('mapFoundBtn').style.display    = 'block';
+
+  // Location prompt: visible only while position is unknown (entrance default)
+  const prompt = document.getElementById('locPrompt');
+  if (!userPos) {
+    prompt.classList.remove('hidden');
+    document.getElementById('legendYou').textContent = '🟢 You are here (Entrance)';
+  } else {
+    prompt.classList.add('hidden');
+    document.getElementById('legendYou').textContent = `🔵 ${fromPos.label}`;
+  }
+}
+
+function renderSectionChips(layout) {
+  const wrap = document.getElementById('secChips');
+  wrap.innerHTML = '';
+  const skip = new Set(['checkout', 'customer_svc', 'pro_desk']);
+  for (const sec of layout.sections) {
+    if (skip.has(sec.id)) continue;
+    const chip = document.createElement('button');
+    chip.className      = 'sec-chip' + (userPos?.sectionId === sec.id ? ' active' : '');
+    chip.textContent    = sec.label;
+    chip.dataset.sid    = sec.id;
+    chip.onclick = () => {
+      userPos = {
+        gx: sec.gx + sec.gw / 2,
+        gy: sec.gy + sec.gh / 2,
+        sectionId: sec.id,
+        label: sec.label,
+      };
+      _applyUserPos(layout, _navProduct, userPos);
+    };
+    wrap.appendChild(chip);
+  }
+}
+
+function markAsFound() {
+  if (!_navProduct || !_storeLayout) return;
+
+  // Snap user's position to the found product's section
+  const sec = _storeLayout.sections.find(s => s.id === _navProduct.section);
+  userPos = sec
+    ? { gx: sec.gx + sec.gw/2, gy: sec.gy + sec.gh/2, sectionId: sec.id, label: sec.label }
+    : { gx: _navProduct.gx, gy: _navProduct.gy, sectionId: _navProduct.section, label: _navProduct.aisle || _navProduct.section };
+
+  // Mark item as found in the shopping list
+  const cartIdx = cartItems.findIndex(i => i.product.id === _navProduct.id);
+  if (cartIdx >= 0) cartItems[cartIdx].found = true;
+
+  document.getElementById('legendYou').textContent = `🔵 ${userPos.label}`;
+  document.querySelectorAll('.sec-chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.sid === userPos.sectionId));
+
+  // ── Multi-stop route: advance to next stop ──────────────────────
+  if (_multiStopProducts && _multiStopIdx < _multiStopProducts.length - 1) {
+    const foundName = _navProduct.name.split(',')[0];
+    _multiStopIdx++;
+    _navProduct = _multiStopProducts[_multiStopIdx];
+    const stopInfo = { current: _multiStopIdx + 1, total: _multiStopProducts.length };
+
+    drawMultiStopMap(_storeLayout, _multiStopProducts, userPos);
+
+    const aisleLabel = (_navProduct.aisle || _navProduct.section || '').split('·')[0].trim();
+    document.getElementById('mapTitle').textContent    = `Route · ${_multiStopProducts.length} stops`;
+    document.getElementById('mapSubtitle').textContent = `Stop ${stopInfo.current} of ${stopInfo.total}: ${aisleLabel}`;
+    document.getElementById('mapPname').textContent    = _navProduct.name;
+    document.getElementById('mapPdesc').textContent    =
+      `${_navProduct.brand ? _navProduct.brand + ' · ' : ''}${_navProduct.aisle || ''}` +
+      `${_navProduct.price ? ' · $' + _navProduct.price.toFixed(2) : ''}`;
+    document.getElementById('mapProductInfo').style.display = 'block';
+    document.getElementById('mapFoundBtn').style.display    = 'block';
+
+    openNavBar(_navProduct, userPos);
+    showToast(`✓ Got it! → Stop ${stopInfo.current}/${stopInfo.total}: ${_navProduct.name.split(',')[0]}`);
+
+    if (voiceEnabled && window.speechSynthesis) {
+      speechSynthesis.cancel();
+      const arrival = new SpeechSynthesisUtterance(
+        `Got it! ${foundName} is in your cart. Now heading to stop ${stopInfo.current} of ${stopInfo.total}.`
+      );
+      arrival.voice = _getBestVoice();
+      arrival.rate = 0.88; arrival.pitch = 1.05; arrival.lang = 'en-US';
+      arrival.onend = () => speakDirections(userPos, _navProduct, stopInfo);
+      speechSynthesis.speak(arrival);
+    }
+
+  // ── Last stop collected ─────────────────────────────────────────
+  } else if (_multiStopProducts && _multiStopIdx >= _multiStopProducts.length - 1) {
+    document.getElementById('mapFoundBtn').style.display = 'none';
+    document.getElementById('mapTitle').textContent      = 'All items found!';
+    document.getElementById('mapSubtitle').textContent   = 'Head to checkout';
+    drawMultiStopMap(_storeLayout, _multiStopProducts, userPos);
+    closeNavBar();
+    showToast('🎉 All items found! Head to checkout.');
+    if (voiceEnabled && window.speechSynthesis) {
+      speechSynthesis.cancel();
+      const done = new SpeechSynthesisUtterance(
+        'Shopping complete! You have all your items. Please head to the checkout lanes at the front of the store.'
+      );
+      done.voice = _getBestVoice(); done.rate = 0.88; done.pitch = 1.05; done.lang = 'en-US';
+      speechSynthesis.speak(done);
+    }
+
+  // ── Single-stop mode ────────────────────────────────────────────
+  } else {
+    document.getElementById('mapFoundBtn').style.display = 'none';
+    drawStoreMap(_storeLayout, _navProduct, userPos);
+    showToast(`📍 Location updated → ${userPos.label}`);
+    if (voiceEnabled && window.speechSynthesis) {
+      speechSynthesis.cancel();
+      const done = new SpeechSynthesisUtterance(
+        `${_navProduct.name.split(',')[0]} added to your list. Great find!`
+      );
+      done.voice = _getBestVoice(); done.rate = 0.88; done.pitch = 1.05; done.lang = 'en-US';
+      speechSynthesis.speak(done);
+    }
+  }
+}
+
+function _nearestSection(tapGx, tapGy, layout) {
+  let best = null, bestD = Infinity;
+  const skip = new Set(['checkout', 'customer_svc']);
+  for (const sec of layout.sections) {
+    if (skip.has(sec.id)) continue;
+    const cx = sec.gx + sec.gw / 2, cy = sec.gy + sec.gh / 2;
+    const d  = Math.hypot(cx - tapGx, cy - tapGy);
+    if (d < bestD) { bestD = d; best = { gx: cx, gy: cy, sectionId: sec.id, label: sec.label }; }
+  }
+  return best;
+}
+
+function closeMap() {
+  _stopARCamera();
+  document.getElementById('mapOverlay').classList.remove('open');
+}
+function handleMapOverlayClick(e) {
+  if (e.target === document.getElementById('mapOverlay')) closeMap();
+}
+
+// ── Camera AR for direction view ─────────────────────────────────────────────
+
+let _arStream = null;
+
+async function toggleARCamera() {
+  const video   = document.getElementById('arCamera');
+  const btn     = document.getElementById('arBtn');
+  const dirView = document.getElementById('dirView');
+
+  if (_arStream) {
+    // Turn camera OFF
+    _arStream.getTracks().forEach(t => t.stop());
+    _arStream = null;
+    video.srcObject = null;
+    video.classList.remove('ar-on');
+    dirView.classList.remove('ar-active');
+    if (btn) btn.textContent = '📷 Camera';
+    return;
+  }
+
+  // Turn camera ON — prefer rear camera
+  try {
+    _arStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false,
+    });
+    video.srcObject = _arStream;
+    await video.play();
+    video.classList.add('ar-on');
+    dirView.classList.add('ar-active');
+    if (btn) btn.textContent = '✕ Close';
+  } catch (err) {
+    showToast('Camera not available – check permissions');
+  }
+}
+
+function _stopARCamera() {
+  if (!_arStream) return;
+  _arStream.getTracks().forEach(t => t.stop());
+  _arStream = null;
+  const video   = document.getElementById('arCamera');
+  const dirView = document.getElementById('dirView');
+  const btn     = document.getElementById('arBtn');
+  if (video)   { video.srcObject = null; video.classList.remove('ar-on'); }
+  if (dirView)   dirView.classList.remove('ar-active');
+  if (btn)       btn.textContent = '📷 Camera';
+}
+
+// ════════════════════════════════════════════════════════════════════
+// AISLE-COORDINATE NAVIGATION  (step-by-step without GPS)
+// ════════════════════════════════════════════════════════════════════
+
+/**
+ * Sorted table: [aisle_number, gx_center]
+ * Mirrors the backend formula: aisle_num = int((gx/16)*35)+1
+ * so gx = (aisle_num-1) * 16/35
+ */
+const _GX_AISLE_TABLE = (() => {
+  const rows = [];
+  for (let n = 1; n <= 35; n++) rows.push([n, (n - 1) * (16 / 35)]);
+  return rows;
+})();
+
+function _gxToAisleNum(gx) {
+  if (gx < 2.0) return `G${Math.max(1, Math.min(4, Math.floor(gx * 2) + 1))}`;
+  const n = Math.max(1, Math.min(35, Math.floor((gx / 16) * 35) + 1));
+  return n < 10 ? `0${n}` : `${n}`;
+}
+
+function _gyToBay(gy) {
+  // Bay 1 = front/checkout (gy≈8.5), Bay 6 = back wall (gy≈0)
+  const norm = 1.0 - Math.min(1, Math.max(0, gy / 8.5));
+  return Math.max(1, Math.min(6, Math.floor(norm * 6) + 1));
+}
+
+function _aisleToGx(aisleStr) {
+  if (!aisleStr) return 6.0;
+  const s = String(aisleStr).trim().toUpperCase();
+  if (s.startsWith('G')) {
+    const n = parseInt(s.slice(1)) || 1;
+    return (n / 4) * 2.0;
+  }
+  const n = parseInt(s) || 0;
+  if (!n) return 6.0;
+  return (n - 1) * (16 / 35);
+}
+
+/**
+ * Build step-by-step navigation instructions (no GPS required).
+ * Uses aisle numbers (left-right) + bay numbers (front-back depth).
+ */
+function buildNavSteps(fromPos, product) {
+  if (!product) return [];
+  const entrance = _storeLayout?.entrance || { gx: 6, gy: 9.5 };
+  const fp = fromPos || { gx: entrance.gx, gy: entrance.gy };
+
+  const dx = (product.gx || 8) - fp.gx;
+  const dy = (product.gy || 4) - fp.gy; // negative = toward back of store (gy→0)
+
+  const fromAisle = _gxToAisleNum(fp.gx);
+  const toAisle   = _gxToAisleNum(product.gx || 8);
+  const toBay     = _gyToBay(product.gy || 4);
+
+  const fromN = parseInt(fromAisle.replace('G','0')) || 0;
+  const toN   = parseInt(toAisle.replace('G','0')) || 0;
+  const aisleDelta = Math.abs(toN - fromN);
+
+  const secLabel = (product.section || 'hardware').replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+  const prodName = (product.name || '').split(',')[0];
+
+  const steps = [];
+
+  // Step 0: entering the store
+  if (fp.gy >= 8.5) {
+    steps.push({ icon: '🚪', text: 'Enter through the main entrance' });
+  }
+
+  // Step 1: lateral (which aisle column)
+  if (Math.abs(dx) > 0.5) {
+    if ((product.gx || 8) < 2.0) {
+      steps.push({ icon: '←', text: 'Turn left into the Garden & Outdoors section' });
+    } else if (dx < 0) {
+      const aw = aisleDelta === 1 ? '1 aisle' : `${aisleDelta} aisles`;
+      steps.push({ icon: '←', text: `Walk left past ${aw} → Aisle ${toAisle}` });
+    } else {
+      const aw = aisleDelta === 1 ? '1 aisle' : `${aisleDelta} aisles`;
+      steps.push({ icon: '→', text: `Walk right past ${aw} → Aisle ${toAisle}` });
+    }
+  }
+
+  // Step 2: depth into the aisle
+  if (Math.abs(dy) > 1.0) {
+    const depthPhrase = dy < 0 ? 'toward the back of the store' : 'toward the front (checkout)';
+    const depthIcon   = dy < 0 ? '↑' : '↓';
+    steps.push({ icon: depthIcon, text: `Enter Aisle ${toAisle} → walk ${depthPhrase} to Bay ${toBay}` });
+  } else if (Math.abs(dx) > 0.5) {
+    steps.push({ icon: '↑', text: `Enter Aisle ${toAisle} — Bay ${toBay}` });
+  }
+
+  // Step 3: arrival
+  steps.push({ icon: '📦', text: `${prodName} — ${secLabel}, Aisle ${toAisle}, Bay ${toBay}` });
+
+  return steps;
+}
+
+function renderNavSteps(steps) {
+  const el = document.getElementById('navSteps');
+  if (!el) return;
+  if (!steps || !steps.length) { el.innerHTML = ''; return; }
+  el.innerHTML = steps.map((s, i) => `
+    <div class="nav-step${i === 0 ? ' active' : ''}">
+      <span class="nav-step-icon">${s.icon}</span>
+      <span class="nav-step-text">${s.text}</span>
+    </div>`).join('');
+}
+
+// ── Aisle scan interface (numeric keypad → update user position) ──────
+
+let _aisleInput = '';
+
+function openAisleScan() {
+  _aisleInput = '';
+  const disp = document.getElementById('aisleInputDisplay');
+  if (disp) disp.textContent = '__';
+  document.getElementById('aisleScanOverlay')?.classList.add('open');
+  // Optionally start camera as backdrop
+  if (!_arStream) toggleARCamera().catch(() => {});
+}
+
+function closeAisleScan() {
+  document.getElementById('aisleScanOverlay')?.classList.remove('open');
+}
+
+function aisleKey(k) {
+  if (k === '⌫') {
+    _aisleInput = _aisleInput.slice(0, -1);
+  } else if (_aisleInput.length < 3) {
+    _aisleInput += k;
+  }
+  const disp = document.getElementById('aisleInputDisplay');
+  if (disp) disp.textContent = _aisleInput || '__';
+}
+
+function confirmAisle() {
+  const raw = _aisleInput.trim().toUpperCase();
+  if (!raw || raw === '__') { closeAisleScan(); return; }
+
+  const gx = _aisleToGx(raw);
+  const currentGy = userPos ? userPos.gy : 5.0;
+
+  // Find section at this position
+  let sectionId = 'hardware';
+  for (const sec of (_storeLayout?.sections || [])) {
+    if (gx >= sec.gx && gx < sec.gx + sec.gw &&
+        currentGy >= sec.gy && currentGy < sec.gy + sec.gh) {
+      sectionId = sec.id; break;
+    }
+  }
+
+  userPos = {
+    gx, gy: currentGy,
+    sectionId,
+    label: `Aisle ${raw}`,
+    source: 'aisle_scan',
+  };
+
+  showToast(`📍 Position updated: Aisle ${raw}`);
+  closeAisleScan();
+
+  // Refresh nav with new position
+  if (_navProduct) {
+    const steps = buildNavSteps(userPos, _navProduct);
+    renderNavSteps(steps);
+    openNavBar(_navProduct, userPos);
+    if (voiceEnabled && window.speechSynthesis) speakDirections(userPos, _navProduct, null);
+  }
+  // Redraw map
+  if (_storeLayout && _navProduct) drawStoreMap(_storeLayout, _navProduct, userPos);
+}
+
+/** Toggle between direction-view and canvas map inside the map overlay. */
+function toggleDirMap() {
+  const sheet  = document.getElementById('mapSheet');
+  const btn    = sheet.querySelector('.dir-map-toggle');
+  const isDirMode = sheet.classList.toggle('dir-mode');
+  if (btn) btn.textContent = isDirMode ? '📐 Show map' : '⬅ Back to directions';
+  // Redraw canvas when switching to map so it's always fresh
+  if (!isDirMode && _storeLayout && _navProduct) {
+    const fp = userPos || { gx: _storeLayout.entrance.gx, gy: _storeLayout.entrance.gy, sectionId: 'entrance', label: 'Entrance' };
+    if (_multiStopProducts) drawMultiStopMap(_storeLayout, _multiStopProducts, fp);
+    else                    drawStoreMap(_storeLayout, _navProduct, fp);
+  }
+}
+
+// Section colours matching hd_store_data.py (keyed by section id)
+const SEC_COLORS = {
+  garden:'#86EFAC',
+  electrical:'#FDE68A', tools:'#FB923C', hardware:'#D1D5DB',
+  windows_doors:'#BAE6FD', millwork:'#D4B896',
+  lighting:'#FEF08A', appliances:'#CBD5E1', flooring:'#B8860B', storage:'#6EE7B7',
+  bath:'#BBF7D0', paint:'#FCA5A5', plumbing:'#93C5FD',
+  lumber:'#C8A96E', building_mat:'#BFA07A',
+  checkout:'#F3F4F6', pro_desk:'#FED7AA',
+};
+
+function drawStoreMap(layout, product, fromPos) {
+  const canvas = document.getElementById('mapCanvas');
+  const ctx    = canvas.getContext('2d');
+
+  const { cols, rows } = layout.grid;
+  const wrap = document.querySelector('.map-canvas-wrap');
+  const maxW = Math.min(wrap.clientWidth - 24, 360);
+  const CP   = Math.floor(maxW / cols);
+  _mapCP = CP;                                 // expose for tap→grid conversion
+  canvas.width  = cols * CP;
+  canvas.height = rows * CP;
+
+  // 1. Floor background
+  ctx.fillStyle = '#F5F0E8';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 2. Sections
+  for (const sec of layout.sections) {
+    const PAD = 2;
+    const x = sec.gx * CP + PAD, y = sec.gy * CP + PAD;
+    const w = sec.gw * CP - PAD*2, h = sec.gh * CP - PAD*2;
+    const color = SEC_COLORS[sec.id] || '#E5E7EB';
+
+    ctx.fillStyle = color;
+    roundRect(ctx, x, y, w, h, 4); ctx.fill();
+
+    // Highlight product's section with orange border
+    if (product.section && sec.id === product.section) {
+      ctx.strokeStyle = '#F96302'; ctx.lineWidth = 2.5;
+      roundRect(ctx, x, y, w, h, 4); ctx.stroke();
+    }
+
+    // Highlight user's section with blue border
+    if (fromPos && sec.id === fromPos.sectionId && fromPos.sectionId !== 'entrance') {
+      ctx.strokeStyle = '#2563EB'; ctx.lineWidth = 2;
+      roundRect(ctx, x + 1, y + 1, w - 2, h - 2, 3); ctx.stroke();
+    }
+
+    // Label
+    if (CP >= 18) {
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const fs = Math.min(9, Math.max(5, Math.floor(w / (sec.label.length * 0.65))));
+      ctx.font = `600 ${fs}px -apple-system,sans-serif`;
+      const cx = x + w/2, cy = y + h/2;
+      const tw = ctx.measureText(sec.label).width;
+      if (tw < w - 4) {
+        ctx.fillText(sec.label, cx, cy);
+      } else {
+        const sp = sec.label.indexOf(' ', Math.floor(sec.label.length/2));
+        if (sp > 0) {
+          ctx.fillText(sec.label.slice(0, sp), cx, cy - 4);
+          ctx.fillText(sec.label.slice(sp+1), cx, cy + 5);
+        } else {
+          ctx.fillText(sec.label.slice(0, 8), cx, cy);
+        }
+      }
+    }
+  }
+
+  // 3. Store border
+  ctx.strokeStyle = '#9CA3AF'; ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, canvas.width-2, canvas.height-2);
+
+  // 4. Coordinates – start from fromPos (user location or entrance)
+  const fp = fromPos || { gx: layout.entrance.gx, gy: layout.entrance.gy };
+  const ux = fp.gx * CP, uy = fp.gy * CP;
+  const px = product.gx != null ? product.gx * CP : canvas.width  / 2;
+  const py = product.gy != null ? product.gy * CP : canvas.height / 2;
+
+  // 5. Route – L-shape: horizontal first then vertical
+  //    This mimics walking along an aisle row, then turning into the product's aisle
+  const arrived = Math.hypot(ux - px, uy - py) < CP * 1.2;
+  if (!arrived) {
+    const pathPts = [
+      { x: ux, y: uy },
+      { x: px, y: uy },   // horizontal along user's row
+      { x: px, y: py },   // vertical into product aisle
+    ];
+
+    ctx.save();
+    // White halo
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    drawPolyline(ctx, pathPts); ctx.stroke();
+
+    // HD orange route line
+    ctx.strokeStyle = '#F96302'; ctx.lineWidth = 3.5; ctx.setLineDash([]);
+    drawPolyline(ctx, pathPts); ctx.stroke();
+
+    // Direction arrows (only for segments longer than half a cell)
+    if (Math.abs(px - ux) > CP * 0.5)
+      drawArrow(ctx, { x: ux, y: uy }, { x: px, y: uy });
+    if (Math.abs(py - uy) > CP * 0.5)
+      drawArrow(ctx, { x: px, y: uy }, { x: px, y: py });
+    ctx.restore();
+  }
+
+  // 6. Product pin (red teardrop)
+  drawTeardrop(ctx, px, py, '#EF4444');
+
+  // 7. YOU dot – green when at entrance (default), blue when manually set
+  const dotColor  = (!userPos || fromPos.sectionId === 'entrance') ? '#22C55E' : '#2563EB';
+  const youLabel  = fromPos.label || (userPos ? fromPos.sectionId : 'Entrance');
+
+  // Outer pulse ring
+  ctx.save();
+  ctx.strokeStyle = dotColor; ctx.lineWidth = 2; ctx.globalAlpha = 0.3;
+  ctx.beginPath(); ctx.arc(ux, uy, 15, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 1; ctx.restore();
+
+  drawPin(ctx, ux, uy, dotColor, '●', 9);
+
+  ctx.fillStyle = dotColor;
+  ctx.font = 'bold 7px -apple-system,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('YOU', ux, uy + 17);
+
+  // If arrived, show a celebratory checkmark on the product pin instead of teardrop
+  if (arrived) {
+    ctx.fillStyle = '#22C55E'; ctx.font = 'bold 11px -apple-system,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('✓', px, py);
+  }
+}
+
+function drawPolyline(ctx, pts) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+}
+
+function drawArrow(ctx, from, to) {
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const mx = (from.x + to.x) / 2, my = (from.y + to.y) / 2;
+  ctx.save();
+  ctx.translate(mx, my); ctx.rotate(angle);
+  ctx.fillStyle = '#F96302';
+  ctx.beginPath();
+  ctx.moveTo(5, 0); ctx.lineTo(-3, -4); ctx.lineTo(-3, 4);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawPin(ctx, x, y, color, label, r) {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.shadowColor = color; ctx.shadowBlur = 6;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${r*0.85}px -apple-system,sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(label, x, y);
+  ctx.restore();
+}
+
+function drawTeardrop(ctx, x, y, color) {
+  const R = 10;
+  ctx.save();
+  ctx.shadowColor = color; ctx.shadowBlur = 8;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y - R - 3, R, Math.PI, 0);
+  ctx.quadraticCurveTo(x + R, y - 3, x, y + 4);
+  ctx.quadraticCurveTo(x - R, y - 3, x - R, y - R - 3);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 8px -apple-system,sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('📍', x, y - R - 3);
+  ctx.restore();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 1. SHOPPING LIST  (localStorage-backed cart)
+// ════════════════════════════════════════════════════════════════════
+let cartItems = [];
+try { cartItems = JSON.parse(localStorage.getItem('gc_cart') || '[]'); } catch {}
+
+function _refreshCartBadge() {
+  const n = cartItems.filter(i => !i.found).length;
+  const badge = document.getElementById('cartBadge');
+  badge.style.display = n > 0 ? 'flex' : 'none';
+  badge.textContent = n;
+  const rb = document.getElementById('listRouteBtn');
+  if (rb) rb.disabled = (cartItems.filter(i => !i.found && i.product.gx != null).length < 2);
+}
+_refreshCartBadge();
+
+function saveCart() {
+  try { localStorage.setItem('gc_cart', JSON.stringify(cartItems)); } catch {}
+  _refreshCartBadge();
+}
+
+function addToCart(product) {
+  if (cartItems.some(i => i.product.id === product.id)) { openList(); return; }
+  cartItems.push({ product, found: false, addedAt: Date.now() });
+  saveCart();
+  showToast(`✓ Added: ${product.name.slice(0, 28)}`);
+  document.querySelectorAll(`[data-pid="${product.id}"]`).forEach(btn => {
+    btn.textContent = '✓ In list'; btn.classList.add('in-list');
+  });
+}
+
+function removeFromCart(idx) {
+  const pid = cartItems[idx]?.product.id;
+  cartItems.splice(idx, 1);
+  saveCart(); renderList();
+  if (pid) document.querySelectorAll(`[data-pid="${pid}"]`).forEach(btn => {
+    btn.textContent = '+ Add to list'; btn.classList.remove('in-list');
+  });
+}
+
+function toggleFound(idx) {
+  if (idx < 0 || idx >= cartItems.length) return;
+  cartItems[idx].found = !cartItems[idx].found;
+  cartItems.sort((a, b) => a.found - b.found);
+  saveCart(); renderList();
+}
+
+function renderList() {
+  const container  = document.getElementById('listItems');
+  const emptyEl    = document.getElementById('listEmpty');
+  const countBadge = document.getElementById('listCount');
+  container.innerHTML = '';
+
+  if (cartItems.length === 0) {
+    emptyEl.style.display = 'block';
+    countBadge.style.display = 'none';
+    _refreshCartBadge(); return;
+  }
+  emptyEl.style.display = 'none';
+  const unfound = cartItems.filter(i => !i.found).length;
+  countBadge.style.display = 'inline-block';
+  countBadge.textContent = `${unfound}/${cartItems.length}`;
+
+  cartItems.forEach((item, idx) => {
+    const row = document.createElement('div');
+    row.className = `list-item${item.found ? ' found' : ''}`;
+
+    const check = document.createElement('div');
+    check.className = 'list-check';
+    check.textContent = item.found ? '✓' : '';
+    check.onclick = () => toggleFound(idx);
+    row.appendChild(check);
+
+    const info = document.createElement('div');
+    info.className = 'list-item-info';
+    info.innerHTML = `<div class="list-item-name">${esc(item.product.name)}</div>
+      <div class="list-item-aisle">📍 ${esc(item.product.aisle || item.product.section || '')}${item.product.price ? ` · $${item.product.price.toFixed(2)}` : ''}</div>`;
+    row.appendChild(info);
+
+    if (!item.found && item.product.gx != null) {
+      const nb = document.createElement('button');
+      nb.className = 'list-nav-btn'; nb.textContent = '🗺';
+      nb.onclick = () => { closeList(); openMap(item.product); };
+      row.appendChild(nb);
+    }
+
+    const del = document.createElement('button');
+    del.className = 'list-del-btn'; del.textContent = '✕';
+    del.onclick = () => removeFromCart(idx);
+    row.appendChild(del);
+
+    container.appendChild(row);
+  });
+  _refreshCartBadge();
+}
+
+function openList() { renderList(); document.getElementById('listOverlay').classList.add('open'); }
+function closeList() { document.getElementById('listOverlay').classList.remove('open'); }
+function handleListOverlayClick(e) {
+  if (e.target === document.getElementById('listOverlay')) closeList();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 2. MULTI-STOP ROUTE MAP
+// ════════════════════════════════════════════════════════════════════
+async function startRouteFromList() {
+  const unfound = cartItems.filter(i => !i.found && i.product.gx != null);
+  if (unfound.length < 2) return;
+  closeList();
+
+  let products = unfound.map(i => i.product).slice(0, 30); // backend cap is 30
+  try {
+    const resp = await fetch(`${API}/api/route/plan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_ids: products.map(p => p.id) }),
+    });
+    if (resp.ok) {
+      const route = await resp.json();
+      const order = Object.fromEntries((route.steps || []).map((s, i) => [s.product_id, i]));
+      products = [...products].sort((a, b) => (order[a.id] ?? 99) - (order[b.id] ?? 99));
+    }
+  } catch {}
+
+  openMultiStopMap(products);
+}
+
+function openMultiStopMap(products) {
+  _multiStopProducts = products;
+  _multiStopIdx      = 0;
+  _navProduct        = products[0];
+
+  const overlay = document.getElementById('mapOverlay');
+  overlay.classList.add('open');
+  // Activate direction view when in-store, canvas otherwise
+  document.getElementById('mapSheet').classList.toggle('dir-mode', isInStore);
+  document.getElementById('mapTitle').textContent    = `Route · ${products.length} stops`;
+  document.getElementById('mapSubtitle').textContent = 'Optimized shopping order';
+  document.getElementById('mapPreviewBanner').classList.remove('show');
+  document.getElementById('locPrompt').classList.add('hidden');
+  document.getElementById('mapResetBtn').style.display = 'none';
+  document.getElementById('mapCanvas').onclick = null;
+
+  loadLayout().then(layout => {
+    if (!layout) return;
+    renderSectionChips(layout);
+    const fromPos = userPos || { gx: layout.entrance.gx, gy: layout.entrance.gy, sectionId: 'entrance', label: 'Entrance' };
+    drawMultiStopMap(layout, products, fromPos);
+
+    // Show product card for stop 1
+    const aisleLabel = (products[0].aisle || products[0].section || '').split('·')[0].trim();
+    document.getElementById('mapSubtitle').textContent = `Stop 1 of ${products.length}: ${aisleLabel}`;
+    document.getElementById('mapPname').textContent    = products[0].name;
+    document.getElementById('mapPdesc').textContent    =
+      `${products[0].brand ? products[0].brand + ' · ' : ''}${products[0].aisle || ''}` +
+      `${products[0].price ? ' · $' + products[0].price.toFixed(2) : ''}`;
+    document.getElementById('mapProductInfo').style.display = 'block';
+    document.getElementById('mapFoundBtn').style.display    = 'block';
+
+    openNavBar(products[0], fromPos);
+
+    // Route intro speech then first stop directions
+    if (voiceEnabled && window.speechSynthesis) {
+      speechSynthesis.cancel();
+      const introText = `I've mapped out a route with ${products.length} stops. Here's your first one.`;
+      const intro = new SpeechSynthesisUtterance(introText);
+      intro.voice = _getBestVoice();
+      intro.rate = 0.88; intro.pitch = 1.05; intro.lang = 'en-US';
+      intro.onend = () => speakDirections(fromPos, products[0], { current: 1, total: products.length });
+      speechSynthesis.speak(intro);
+    }
+  });
+}
+
+function drawMultiStopMap(layout, products, fromPos) {
+  const canvas = document.getElementById('mapCanvas');
+  const ctx    = canvas.getContext('2d');
+  const { cols, rows } = layout.grid;
+  const wrap = document.querySelector('.map-canvas-wrap');
+  const maxW = Math.min(wrap.clientWidth - 24, 360);
+  const CP   = Math.floor(maxW / cols);
+  _mapCP = CP; canvas.width = cols * CP; canvas.height = rows * CP;
+
+  // Draw sections
+  ctx.fillStyle = '#F5F0E8'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const stopSections = new Set(products.map(p => p.section));
+  for (const sec of layout.sections) {
+    const PAD=2, x=sec.gx*CP+PAD, y=sec.gy*CP+PAD, w=sec.gw*CP-PAD*2, h=sec.gh*CP-PAD*2;
+    ctx.fillStyle = SEC_COLORS[sec.id] || '#E5E7EB';
+    roundRect(ctx, x, y, w, h, 4); ctx.fill();
+    if (stopSections.has(sec.id)) {
+      ctx.strokeStyle = '#F96302'; ctx.lineWidth = 2;
+      roundRect(ctx, x, y, w, h, 4); ctx.stroke();
+    }
+    if (CP >= 18) {
+      ctx.fillStyle='rgba(0,0,0,.5)'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      const fs=Math.min(9,Math.max(5,Math.floor(w/(sec.label.length*0.65))));
+      ctx.font=`600 ${fs}px -apple-system,sans-serif`;
+      const lbl = sec.label;
+      const tw  = ctx.measureText(lbl).width;
+      const cx  = x+w/2, cy = y+h/2;
+      if (tw < w-4) { ctx.fillText(lbl, cx, cy); }
+      else { const sp=lbl.indexOf(' ',Math.floor(lbl.length/2)); if(sp>0){ ctx.fillText(lbl.slice(0,sp),cx,cy-4); ctx.fillText(lbl.slice(sp+1),cx,cy+5); } else ctx.fillText(lbl.slice(0,8),cx,cy); }
+    }
+  }
+  ctx.strokeStyle='#9CA3AF'; ctx.lineWidth=2; ctx.strokeRect(1,1,canvas.width-2,canvas.height-2);
+
+  // Build waypoints
+  const wpts = [
+    { x: fromPos.gx*CP, y: fromPos.gy*CP },
+    ...products.map(p => ({ x: (p.gx||8)*CP, y: (p.gy||5)*CP })),
+  ];
+
+  // Dashed route line
+  ctx.save();
+  ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=7; ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.beginPath(); ctx.moveTo(wpts[0].x, wpts[0].y);
+  wpts.slice(1).forEach(w => ctx.lineTo(w.x, w.y)); ctx.stroke();
+  ctx.strokeStyle='#F96302'; ctx.lineWidth=3; ctx.setLineDash([7,4]);
+  ctx.beginPath(); ctx.moveTo(wpts[0].x, wpts[0].y);
+  wpts.slice(1).forEach(w => ctx.lineTo(w.x, w.y)); ctx.stroke();
+  ctx.setLineDash([]); ctx.restore();
+
+  // YOU dot
+  const dotColor = userPos ? '#2563EB' : '#22C55E';
+  ctx.save(); ctx.strokeStyle=dotColor; ctx.lineWidth=2; ctx.globalAlpha=.3;
+  ctx.beginPath(); ctx.arc(wpts[0].x, wpts[0].y, 15, 0, Math.PI*2); ctx.stroke();
+  ctx.globalAlpha=1; ctx.restore();
+  drawPin(ctx, wpts[0].x, wpts[0].y, dotColor, '●', 9);
+  ctx.fillStyle=dotColor; ctx.font='bold 7px -apple-system,sans-serif';
+  ctx.textAlign='center'; ctx.fillText('YOU', wpts[0].x, wpts[0].y+17);
+
+  // Numbered product pins
+  products.forEach((p, i) => {
+    const isFound = cartItems.some(c => c.product.id === p.id && c.found);
+    const col = isFound ? '#22C55E' : (i===0 ? '#EF4444' : '#F96302');
+    drawPin(ctx, wpts[i+1].x, wpts[i+1].y, col, String(i+1), 12);
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 3. VOICE TURN-BY-TURN  (Web Speech Synthesis)
+// ════════════════════════════════════════════════════════════════════
+let voiceEnabled = false;
+
+function toggleMapVoice() {
+  voiceEnabled = !voiceEnabled;
+  const btn = document.getElementById('mapVoiceBtn');
+  btn.textContent  = voiceEnabled ? '🔊' : '🔇';
+  btn.title        = voiceEnabled ? 'Voice on – tap to mute' : 'Voice off';
+  btn.classList.toggle('active', voiceEnabled);
+  if (voiceEnabled && _navProduct && _storeLayout) {
+    const fp = userPos || { gx: _storeLayout.entrance.gx, gy: _storeLayout.entrance.gy, sectionId: 'entrance', label: 'Entrance' };
+    const si = _multiStopProducts ? { current: _multiStopIdx + 1, total: _multiStopProducts.length } : null;
+    speakDirections(fp, _navProduct, si);
+  } else {
+    if (window.speechSynthesis) speechSynthesis.cancel();
+  }
+}
+
+/**
+ * _getBestVoice — pick the most natural-sounding available voice.
+ * Preference order: Samantha (macOS) → Karen (AUS) → Google UK English Female
+ * → any en-US voice → null (browser default).
+ */
+function _getBestVoice() {
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return null;
+  const preferred = ['Samantha', 'Karen', 'Moira', 'Tessa',
+                     'Google UK English Female', 'Microsoft Aria Online (Natural)',
+                     'Microsoft Zira Desktop', 'Alex'];
+  for (const name of preferred) {
+    const v = voices.find(v => v.name === name);
+    if (v) return v;
+  }
+  return voices.find(v => /en[-_]US/i.test(v.lang)) || null;
+}
+
+/**
+ * speakDirections — rich voice navigation instruction.
+ * @param {object} fromPos  current user grid position {gx, gy, sectionId, label}
+ * @param {object} product  destination product
+ * @param {{current:number, total:number}|null} stopInfo  optional stop counter for routes
+ */
+function speakDirections(fromPos, product, stopInfo = null) {
+  if (!voiceEnabled || !window.speechSynthesis || !product) return;
+
+  // ── Distance ─────────────────────────────────────────────────────
+  const gridDist = Math.abs(fromPos.gx - product.gx) + Math.abs(fromPos.gy - product.gy);
+  const metres   = Math.round(gridDist * 6);
+  let distPhrase;
+  if (metres < 8)       distPhrase = 'just a few steps away';
+  else if (metres < 25) distPhrase = `about ${metres} metres away`;
+  else                  distPhrase = `about ${metres} metres away`;
+
+  // ── Parse section label and aisle number separately ──────────────
+  // product.aisle format: "Garden & Outdoors · Aisle 22"
+  const aisleStr   = product.aisle || '';
+  const aisleMatch = aisleStr.match(/Aisle\s+0*(\d+)/i);
+  const aisleNum   = aisleMatch ? parseInt(aisleMatch[1], 10) : null;
+  const sectionLabel = aisleStr.split('·')[0].trim()
+    || (product.section || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+  // ── Bearing → store-relative direction ───────────────────────────
+  const bearing = _storeBearingDeg(fromPos, product);
+  let direction;
+  if      (bearing >= 337.5 || bearing <  22.5) direction = 'make your way to the back of the store';
+  else if (bearing >=  22.5 && bearing <  67.5) direction = 'head toward the back-right';
+  else if (bearing >=  67.5 && bearing < 112.5) direction = 'head to the right side of the store';
+  else if (bearing >= 112.5 && bearing < 157.5) direction = 'head toward the front-right';
+  else if (bearing >= 157.5 && bearing < 202.5) direction = 'head toward the front of the store';
+  else if (bearing >= 202.5 && bearing < 247.5) direction = 'head toward the front-left';
+  else if (bearing >= 247.5 && bearing < 292.5) direction = 'head to the left side of the store';
+  else                                           direction = 'head toward the back-left';
+
+  // ── Origin phrase ─────────────────────────────────────────────────
+  const origin = (fromPos.sectionId === 'entrance' || !fromPos.label)
+    ? 'from the store entrance'
+    : `from ${fromPos.label}`;
+
+  // ── Aisle call-out ────────────────────────────────────────────────
+  const aislePhrase = aisleNum ? `, aisle ${aisleNum}` : '';
+
+  // ── Stop context (woven into sentence, not a flat prefix) ─────────
+  const stopContext = stopInfo
+    ? ` That's stop ${stopInfo.current} of ${stopInfo.total}.`
+    : '';
+
+  // ── Product name: first meaningful segment ────────────────────────
+  const productName = product.name.split(',')[0];
+
+  // ── Assemble script ───────────────────────────────────────────────
+  const text = `${origin.charAt(0).toUpperCase() + origin.slice(1)}, ${direction} to ${sectionLabel}${aislePhrase}. Your destination is ${productName}, ${distPhrase}.${stopContext}`;
+
+  speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.voice = _getBestVoice();
+  utt.rate = 0.88; utt.pitch = 1.05; utt.lang = 'en-US';
+  speechSynthesis.speak(utt);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 4. BARCODE / QR SCANNER  (BarcodeDetector API + fallback)
+// ════════════════════════════════════════════════════════════════════
+let _barcodeStream   = null;
+let _barcodeInterval = null;
+
+async function startBarcodeScanner() {
+  const overlay = document.getElementById('scanOverlay');
+  overlay.classList.add('open');
+
+  try {
+    _barcodeStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    const video = document.getElementById('barcodeVideo');
+    video.srcObject = _barcodeStream;
+    await video.play();
+
+    if (!('BarcodeDetector' in window)) {
+      // Fallback: tap-to-capture → send to image search
+      document.getElementById('scanHint').textContent = 'Tap the screen to capture and identify the product';
+      video.onclick = captureBarcodeFrame;
+      return;
+    }
+
+    const detector = new BarcodeDetector({
+      formats: ['upc_a','upc_e','ean_13','ean_8','code_128','code_39','qr_code']
+    });
+    let detected = false;
+    _barcodeInterval = setInterval(async () => {
+      if (detected) return;
+      try {
+        const codes = await detector.detect(video);
+        if (codes.length > 0) {
+          detected = true;
+          if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+          stopBarcodeScanner();
+          // Use barcode value as search term
+          document.getElementById('msgInput').value = codes[0].rawValue;
+          updateSendBtn();
+          sendMessage();
+        }
+      } catch {}
+    }, 300);
+  } catch {
+    stopBarcodeScanner();
+    showToast('Camera access denied');
+  }
+}
+
+async function captureBarcodeFrame() {
+  const video = document.getElementById('barcodeVideo');
+  const cnv   = document.createElement('canvas');
+  cnv.width = video.videoWidth; cnv.height = video.videoHeight;
+  cnv.getContext('2d').drawImage(video, 0, 0);
+  cnv.toBlob(async (blob) => {
+    stopBarcodeScanner();
+    const form = new FormData();
+    form.append('file', blob, 'capture.jpg');
+    const typing = appendTypingBubble();
+    try {
+      const resp = await fetch(`${API}/api/search/image`, { method: 'POST', body: form });
+      if (!resp.ok) throw new Error(`Image search failed (${resp.status})`);
+      const data = await resp.json();
+      typing.remove();
+      appendAIBubble(data.reply || 'Identifying product…');
+      if (data.products?.length) appendProductCards(data.products);
+      if (data.route?.steps?.length) appendRouteCard(data.route);
+    } catch { typing.remove(); appendAIBubble('Could not identify the product. Try typing it instead.'); }
+  }, 'image/jpeg', 0.85);
+}
+
+function stopBarcodeScanner() {
+  clearInterval(_barcodeInterval); _barcodeInterval = null;
+  if (_barcodeStream) { _barcodeStream.getTracks().forEach(t => t.stop()); _barcodeStream = null; }
+  const video = document.getElementById('barcodeVideo');
+  if (video) { video.onclick = null; video.srcObject = null; }
+  document.getElementById('scanOverlay').classList.remove('open');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 5. AISLE COMPANION  (watchPosition → section auto-update)
+// ════════════════════════════════════════════════════════════════════
+let _watchId = null;
+
+function startAisleCompanion() {
+  if (!navigator.geolocation || _watchId != null) return;
+  document.getElementById('companionDot').classList.add('active');
+  _watchId = navigator.geolocation.watchPosition(
+    ({ coords }) => {
+      if (!isInStore || !_storeLayout) return;
+      if (coords.accuracy > 65) return;   // indoor GPS typically 40-60m; reject only very poor fixes
+      const sec = _gpsToSection(coords.latitude, coords.longitude);
+      if (!sec) return;
+      if (!userPos || sec.sectionId !== userPos.sectionId) {
+        userPos = sec;
+        showToast(`📡 ${userPos.label}`, 1800);
+        // If map is open, redraw with new position
+        if (document.getElementById('mapOverlay').classList.contains('open') && _navProduct && _storeLayout) {
+          drawStoreMap(_storeLayout, _navProduct, userPos);
+          document.querySelectorAll('.sec-chip').forEach(c =>
+            c.classList.toggle('active', c.dataset.sid === userPos.sectionId));
+        }
+      }
+    },
+    () => {},
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+  );
+}
+
+function stopAisleCompanion() {
+  if (_watchId != null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
+  document.getElementById('companionDot').classList.remove('active');
+}
+
+function _gpsToSection(lat, lng) {
+  if (!_storeLayout) return null;
+  // Use the currently active store's GPS coordinates (updated by ZIP locator or default HD_STORE)
+  const storeLat = currentStore?.lat || HD_STORE?.lat || 0;
+  const storeLng = currentStore?.lng || HD_STORE?.lng || 0;
+  // Store footprint: ~100 m E-W × ~90 m N-S  (1° lat ≈ 111,320 m; 1° lng ≈ 79,000 m here)
+  const dx = (lng - storeLng) * 79000;   // metres east of store center
+  const dy = (lat - storeLat) * 111320;  // metres north of store center
+  // Grid: 16 cols × 10 rows, ~6 m/col × ~9 m/row; center at col 8, row 5
+  const gx = 8 + dx / 6;
+  const gy = 5 - dy / 9;
+  if (gx < 0 || gx > 16 || gy < 0 || gy > 10) return null;
+  return _nearestSection(gx, gy, _storeLayout);
+}
+</script>
+</body>
+</html>
