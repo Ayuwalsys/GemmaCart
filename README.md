@@ -1,5 +1,8 @@
 # GemmaCart — AI In-Store Shopping Assistant
 
+<img width="1338" height="1522" alt="image" src="https://github.com/user-attachments/assets/b625fb49-a4fb-4a8e-968f-b3a46b767b41" />
+
+
 > Kaggle Gemma 4 Competition Submission  
 > Gemma 4 × Ollama × FastAPI × SerpAPI
 
